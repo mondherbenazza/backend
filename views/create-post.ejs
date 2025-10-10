@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <form action="/create-post" method="POST" enctype="multipart/form-data">
+        <% errors.forEach(error => { %> 
+        <p class="notice"><%= error %></p>
+        <% }) %>
+        <fieldset>
+            <legend>Create post</legend>
+            <label for="title"><small>Title</small></label>
+            <input type="text" id="title" name="title" autocomplete="off">
+            
+            <label for="body"><small>content</small></label>
+            <textarea name="body" id="body"></textarea>
+            
+            <label for="image"><small>Image (optional)</small></label>
+            <input type="file" id="image" name="image" accept="image/*" />
+            <br/>
+            <button>publish post</button>
+        </fieldset>
+        </form>
+    </main>
+    <%- include('includes/footer') %>
+</body>
+</html>

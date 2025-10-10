@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <h1><%= post.title %></h1>
+        <article>
+            <small>posted by <%= post.username %> on <%= new Date(post.createdate).getMonth()+1 %>/<%= new Date(post.createdate).getDate() %>/<%= new Date(post.createdate).getFullYear()%></small>
+            <div>
+                <% if (post.imageurl) { %>
+                <div style="text-align: center;">
+                    <img src="<%= post.imageurl %>" alt="<%= post.title %>" style="max-width:100%;height:auto; display:block; margin:0 auto 12px auto;" />
+                    <a href="/download/<%= post.id %>" 
+                       style="display: inline-block; background: #222; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-size: 16px; margin-top: 8px; transition: background 0.2s;"
+                       onmouseover="this.style.background='#444'" 
+                       onmouseout="this.style.background='#222'">
+                        📥 Download
+                    </a>
+                </div>
+                <% } %>
+                <%- filterUserHTML(post.body) %>
+            </div>
+        </article>
+
+        <% if (isAuthor){ %>
+            <a href="/edit-post/<%= post.id %>" class="button">Edit Post</a>
+            <form style="display: inline;" action="/delete-post/<%= post.id %>" method="POST">
+            <button>Delete Post</button>
+            </form>
+        <% } %>
+
+        
+   
+    </main>
+    <%- include('includes/footer') %>
+</body>
+</html>

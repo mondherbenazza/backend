@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <form action="/edit-post/<%= post.id %>" method="POST" enctype="multipart/form-data">
+        <% errors.forEach(error => { %> 
+        <p class="notice"><%= error %></p>
+        <% }) %>
+        <fieldset>
+            <legend>Edit Post</legend>
+            <label for="title"><small>Title</small></label>
+            <input type="text" value="<%= post.title %>" id="title" name="title" autocomplete="off">
+            
+            <label for="body"><small>content</small></label>
+            <textarea name="body" id="body"><%= post.body %></textarea>
+            <br/>
+            <label for="image"><small>Replace image (optional)</small></label>
+            <input type="file" id="image" name="image" accept="image/*" />
+            <br/>
+            <button>save changes</button>
+        </fieldset>
+        </form>
+    </main>
+    <%- include('includes/footer') %>
+</body>
+</html>

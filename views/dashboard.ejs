@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <% if (posts.length == 0) { %>
+        <h4>Hello <%= user.username %>, Publish you posts here</h4>
+        <% } else { %>
+        <h4>Hello <%= user.username %>, here are you posts</h4>
+        <% } %>
+
+        <ul>
+            <% posts.forEach(post =>{ %>
+                <li>
+                    <% if (post.imageurl) { %>
+                    <img src="<%= post.imageurl %>" alt="thumb" style="width:40px;height:40px;object-fit:cover;vertical-align:middle;margin-right:8px;border-radius:4px;" />
+                    <% } %>
+                    <a href="/post/<%= post.id %>"><%= post.title %></a> on <%= new Date(post.createdate).getMonth()+1 %>/<%= new Date(post.createdate).getDate() %>/<%= new Date(post.createdate).getFullYear()%>
+                </li>
+            <% }) %>
+        </ul>
+    </main>
+    <%- include('includes/footer') %>
+</body>
+</html>

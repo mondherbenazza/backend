@@ -1,0 +1,12 @@
+<header>
+    <h2><a href="/">welcome</a></h2>
+    <nav>
+        <% if (user) { %>
+            <a href="/create-post">Create POST</a>
+            <a href="/logout">Log out</a>
+        <% } else { %>
+            <a href="/login">Log In</a>
+        <% } %>
+        
+    </nav>
+</header>
