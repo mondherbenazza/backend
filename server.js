@@ -6,6 +6,7 @@ const express = require("express");
 const helmet = require("helmet");
 const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
+const rateLimit = require('express-rate-limit');
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
@@ -35,7 +36,8 @@ try {
 const sql = postgres(dbUrl, { ssl: sslOption });
 
 // Multer in-memory storage for forwarding uploads to Supabase Storage
-const upload = multer({ storage: multer.memoryStorage() });
+// Add a file size limit to avoid exhausting memory (10MB default)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: parseInt(process.env.MAX_UPLOAD_BYTES || String(10 * 1024 * 1024), 10) } });
 
 // Supabase client for Storage uploads
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -127,7 +129,28 @@ async function uploadToSupabase(file) {
 
     const { data } = supabase.storage.from(supabaseBucket).getPublicUrl(key);
     console.log("Upload successful, public URL:", data.publicUrl);
-    return data.publicUrl;
+    // Return both public URL and the storage key so callers can delete the object later
+    return { publicUrl: data.publicUrl, key };
+}
+
+// Helper to extract the storage key from a public URL (assumes default Supabase public URL structure)
+function extractStorageKey(publicUrl) {
+    if (!publicUrl) return null;
+    try {
+        const u = new URL(publicUrl);
+        // supabase.publicUrl looks like https://<project>.supabase.co/storage/v1/object/public/<bucket>/<key>
+        const parts = u.pathname.split('/');
+        // find the index of the bucket then the rest is the key
+        const idx = parts.indexOf('public');
+        if (idx >= 0 && parts.length > idx + 2) {
+            // parts after 'public' include bucket and key pieces
+            const keyParts = parts.slice(idx + 2);
+            return keyParts.join('/');
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
 }
 
 // Initialize database tables
@@ -184,9 +207,26 @@ app.use(helmet({
 
 // If running behind a proxy (Heroku, Cloud Run, etc.) enable trust proxy
 // so express can correctly detect secure (HTTPS) requests.
-if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
     app.set('trust proxy', 1);
 }
+
+// Validate critical environment variables early and fail fast with helpful guidance
+function validateEnv() {
+    const required = [
+        { name: 'DATABASE_URL', ok: !!process.env.DATABASE_URL },
+        { name: 'JWTSECRET', ok: !!process.env.JWTSECRET },
+    ];
+
+    const missing = required.filter(r => !r.ok).map(r => r.name);
+    if (missing.length) {
+        console.error('Missing required environment variables:', missing.join(', '));
+        console.error('Add them to your .env or Render environment for production. Aborting.');
+        process.exit(1);
+    }
+}
+
+validateEnv();
 
 // Redirect HTTP -> HTTPS in production
 app.use((req, res, next) => {
@@ -238,7 +278,19 @@ app.get("/logout", (req, res)=>{
     res.redirect("/")
 })
 
-app.post("/login", async (req, res) => {
+// login route with rate limiter applied below
+
+// Define login-specific rate limiter
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: parseInt(process.env.LOGIN_MAX_ATTEMPTS || '5', 10),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many login attempts from this IP, please try again later.'
+});
+
+// Apply limiter to login route
+app.post('/login', loginLimiter, async (req, res) => {
     let errors = []
 
     if (typeof req.body.username !== "string") req.body.username=""
@@ -313,37 +365,78 @@ app.get("/edit-post/:id", mustBeLoggedIn, async (req,res)=>{
 })
 
 app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res) => {
-    const [post] = await sql`SELECT * FROM posts WHERE id = ${req.params.id}`
-    
-    if(!post){
-        return res.redirect("/")
-    }
-
-    if(post.authorid !== req.user.userid){
-        return res.redirect("/")
-    }
-    const errors = share(req)
-    if (errors.length) {
-        return res.render("edit-post", {errors})
-    }
-    let imageUrlFragment = []
-    if (req.file) {
-        try {
-            const newUrl = await uploadToSupabase(req.file)
-            imageUrlFragment.push(sql`imageurl = ${newUrl}`)
-        } catch (e) {
-            console.error("Upload to Supabase failed", e)
-            res.locals.errors = ["Image upload failed. Please try again."]
-            return res.render("edit-post", { errors: res.locals.errors, post })
+    try {
+        const [post] = await sql`SELECT * FROM posts WHERE id = ${req.params.id}`
+        
+        if(!post){
+            return res.redirect("/")
         }
-    }
 
-    if (imageUrlFragment.length) {
-        await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body}, ${sql.join(imageUrlFragment, sql`, `)} WHERE id = ${req.params.id}`
-    } else {
-        await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body} WHERE id = ${req.params.id}`
+        if(post.authorid !== req.user.userid){
+            return res.redirect("/")
+        }
+        const errors = share(req)
+        if (errors.length) {
+            return res.render("edit-post", {errors})
+        }
+        let newImageUrl = null;
+        let newImageKey = null;
+        if (req.file) {
+            try {
+                const uploaded = await uploadToSupabase(req.file)
+                if (uploaded && uploaded.publicUrl) {
+                    newImageUrl = uploaded.publicUrl
+                    newImageKey = uploaded.key
+                }
+            } catch (e) {
+                console.error("Upload to Supabase failed", e)
+                // Multer file size exceeded will be caught earlier, but if it bubbles here check code/message
+                const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
+                res.locals.errors = [msg]
+                return res.render("edit-post", { errors: res.locals.errors, post })
+            }
+        }
+
+        if (newImageUrl) {
+            console.log('Updating post with new image URL...')
+            const oldPublicUrl = post.imageurl
+
+            await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body}, imageurl = ${newImageUrl} WHERE id = ${req.params.id}`
+            console.log('Update with image completed')
+
+            // Attempt to delete previous file from Supabase storage (best-effort)
+            try {
+                if (oldPublicUrl && supabase) {
+                    const oldKey = extractStorageKey(oldPublicUrl)
+                    if (oldKey) {
+                        const { error: removeError } = await supabase.storage.from(supabaseBucket).remove([oldKey])
+                        if (removeError) {
+                            console.warn('Failed to remove old image from Supabase:', removeError)
+                        } else {
+                            console.log('Old image removed from Supabase:', oldKey)
+                        }
+                    }
+                }
+            } catch (removeErr) {
+                console.warn('Error while attempting to remove old Supabase image:', removeErr)
+            }
+        } else {
+            console.log('Updating post without image change...')
+            await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body} WHERE id = ${req.params.id}`
+            console.log('Update without image completed')
+        }
+        res.redirect(`/post/${req.params.id}`)
+    } catch (err) {
+        console.error('Error in /edit-post/:id handler', err && err.stack ? err.stack : err)
+        // Render edit page with a generic error message so the user can retry
+        // If the error is a Multer file size limit error it will have code 'LIMIT_FILE_SIZE'
+        if (err && err.code === 'LIMIT_FILE_SIZE') {
+            res.locals.errors = ['Selected image is too large. Maximum allowed size is 10 MB.']
+            return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null) })
+        }
+        res.locals.errors = ['An internal error occurred. Please try again later.']
+        return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null) })
     }
-    res.redirect(`/post/${req.params.id}`)
 })
 
 
@@ -414,10 +507,12 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
     let imageUrl = null
     if (req.file) {
         try {
-            imageUrl = await uploadToSupabase(req.file)
+            const uploaded = await uploadToSupabase(req.file)
+            imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
         } catch (e) {
             console.error("Upload to Supabase failed", e)
-            res.locals.errors = ["Image upload failed. Please try again."]
+            const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
+            res.locals.errors = [msg]
             return res.render("create-post", { errors: res.locals.errors })
         }
     }
@@ -475,6 +570,52 @@ app.post("/register", async (req, res)=>{
     
 })
 const PORT = process.env.PORT || 3000;
+
+// Error handler to catch Multer file-size errors and show user-friendly messages
+app.use(async function multerErrorHandler(err, req, res, next) {
+    if (!err) return next();
+
+    // Multer sets err.code === 'LIMIT_FILE_SIZE' when file is too large
+    if (err && (err.code === 'LIMIT_FILE_SIZE' || (err.name === 'MulterError' && err.code))) {
+        const msg = 'Selected image is too large. Maximum allowed size is 10 MB.';
+
+        try {
+            // Render create form if this was a create request
+            if (req.path && req.path.startsWith('/create-post')) {
+                res.locals.errors = [msg];
+                return res.status(400).render('create-post', { errors: res.locals.errors });
+            }
+
+            // Render edit form if this was an edit request; attempt to load post so template can render
+            if (req.path && req.path.startsWith('/edit-post')) {
+                const id = req.params && req.params.id ? req.params.id : (() => {
+                    const parts = req.path.split('/'); return parts.length > 2 ? parts[2] : null;
+                })();
+                let post = null;
+                if (id) {
+                    try {
+                        const [p] = await sql`SELECT * FROM posts WHERE id = ${id}`;
+                        post = p || null;
+                    } catch (dbErr) {
+                        console.warn('Could not load post for error page:', dbErr && dbErr.message ? dbErr.message : dbErr);
+                        post = null;
+                    }
+                }
+                res.locals.errors = [msg];
+                return res.status(400).render('edit-post', { errors: res.locals.errors, post });
+            }
+        } catch (renderErr) {
+            console.error('Error while handling Multer error:', renderErr && renderErr.stack ? renderErr.stack : renderErr);
+            // Fall through to generic handler below
+        }
+        // Fallback: send JSON or plain text
+        return res.status(400).send(msg);
+    }
+
+    // Unknown error -> pass to default handler
+    next(err);
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

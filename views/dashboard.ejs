@@ -2,25 +2,78 @@
 <html lang="en">
 <%- include('includes/head') %>
 <body>
-    <%- include('includes/header') %>
-    <main>
-        <% if (posts.length == 0) { %>
-        <h4>Hello <%= user.username %>, Publish you posts here</h4>
-        <% } else { %>
-        <h4>Hello <%= user.username %>, here are you posts</h4>
-        <% } %>
+    
+    <div class="page-container">
+    <div class="bg-gradient"></div>
+        <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">
+                <h1>WELCOME</h1>
+            </div>
+            <div class="nav-buttons">
+            <% if (user) { %>
+            
+                <a class="btn btn-primary" href="/create-post">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14"/><path d="M12 5v14"/>
+                    </svg>CREATE POST
+                </a>
+                <a href="/login" class="btn btn-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+                    </svg>
+                    Logout
+                </a>
 
-        <ul>
+                <% } else { %>
+                <a class="btn btn-secondary" href="/login">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+                    </svg>LOG IN
+                </a>
+                <% } %>
+            </div>
+        </div>
+        </nav>
+        <main class="main-content">
+        <% if (posts.length == 0) { %>
+        <h2 class="page-title">Hello <%= user.username %>, Publish you posts here</h2>
+        <div class="nav-buttons">
+            <a class="btn btn-primary" href="/create-post">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14"/><path d="M12 5v14"/>
+                </svg><span>START NOW !</span>
+            </a>
+        </div>
+        <% } else { %>
+        <h2 class="page-title"><%= user.username %>'s posts</h2>
+        <% } %>
+        <br/>
+        <div class="posts-grid">
             <% posts.forEach(post =>{ %>
-                <li>
                     <% if (post.imageurl) { %>
-                    <img src="<%= post.imageurl %>" alt="thumb" style="width:40px;height:40px;object-fit:cover;vertical-align:middle;margin-right:8px;border-radius:4px;" />
+                    <a class="post-card" href="/post/<%= post.id %>">
+                    <div class="post-image-container">
+                        <img class="post-image" src="<%= post.imageurl %>" alt="thumb"  />
+                        <div class="post-image-overlay"></div>
+                    </div>
                     <% } %>
-                    <a href="/post/<%= post.id %>"><%= post.title %></a> on <%= new Date(post.createdate).getMonth()+1 %>/<%= new Date(post.createdate).getDate() %>/<%= new Date(post.createdate).getFullYear()%>
-                </li>
+                    
+                    <div class="post-content">
+                        <h3 class="post-title" >
+                            <%= post.title %>
+                        </h3>
+                        <p class="post-date">
+                            <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
+                        </p>
+                    </div>
+                    </p>
+                    </a>
             <% }) %>
-        </ul>
-    </main>
+        </div>
+        </main>
+    </div>
+    
     <%- include('includes/footer') %>
 </body>
 </html>

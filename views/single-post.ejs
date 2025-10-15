@@ -2,36 +2,80 @@
 <html lang="en">
 <%- include('includes/head') %>
 <body>
-    <%- include('includes/header') %>
-    <main>
-        <h1><%= post.title %></h1>
-        <article>
-            <small>posted by <%= post.username %> on <%= new Date(post.createdate).getMonth()+1 %>/<%= new Date(post.createdate).getDate() %>/<%= new Date(post.createdate).getFullYear()%></small>
-            <div>
-                <% if (post.imageurl) { %>
-                <div style="text-align: center;">
-                    <img src="<%= post.imageurl %>" alt="<%= post.title %>" style="max-width:100%;height:auto; display:block; margin:0 auto 12px auto;" />
-                    <a href="/download/<%= post.id %>" 
-                       style="display: inline-block; background: #222; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-size: 16px; margin-top: 8px; transition: background 0.2s;"
-                       onmouseover="this.style.background='#444'" 
-                       onmouseout="this.style.background='#222'">
-                        📥 Download
-                    </a>
-                </div>
-                <% } %>
-                <%- filterUserHTML(post.body) %>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">
+                <h1 class="title-main">WELCOME</h1>
             </div>
-        </article>
+            <div class="nav-buttons">
+            <% if (user) { %>
+                <a href="/" class="btn btn-secondary ">
+                     ← BACK
+                </a>
 
-        <% if (isAuthor){ %>
-            <a href="/edit-post/<%= post.id %>" class="button">Edit Post</a>
-            <form style="display: inline;" action="/delete-post/<%= post.id %>" method="POST">
-            <button>Delete Post</button>
-            </form>
-        <% } %>
+                <% } else { %>
+                <a class="btn btn-secondary" href="/login">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+                    </svg><span>LOG IN</span>
+                </a>
+                <% } %>
+            </div>
+        </div>
+    </nav>
+  <main class="main-content max-width-80rem">
+      <article class="article-container">
+        <div class="article-image-container">
 
+            <% if (post.imageurl) { %>
+                <div class="image-preview-container">
+                    <img id="postImage" class="article-image" src="<%= post.imageurl %>" alt="<%= post.title %>" />
+                    </div>
+                <% } %>
+            <div class="article-image-gradient"></div>
+        </div>
+
+        <div class="article-content">
+          <div class="article-header">
+            
+            <h2 id="postTitle" class="article-title"><%= post.title %></h2>
+            <p id="postDate" class="article-meta">Posted by <%= post.username %> on <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
+            </p>
+            </div>
         
-   
+        <div class="article-body" id="postBody"><%- filterUserHTML(post.body) %></div>
+        <div class="article-footer">
+            <a href="/download/<%= post.id %>" id="downloadLink" class="btn btn-secondary btn-inline">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+              </svg>
+              <span>Download Image</span>
+            </a>
+
+            <% if (isAuthor){ %>
+            <div class="button-group">
+              <a href="/edit-post/<%= post.id %>" class="btn btn-primary btn-inline">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+                </svg>
+                <span>Edit</span>
+              </a>
+
+              <form class="inline-form" action="/delete-post/<%= post.id %>" method="POST">
+            
+              <button class="btn btn-secondary btn-inline-small">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+                <span>Delete</span>
+              </button>
+              </form>
+            </div>
+            <% } %>
+          </div>
+        </div>
+      
+        </article>
     </main>
     <%- include('includes/footer') %>
 </body>

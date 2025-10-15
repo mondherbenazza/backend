@@ -2,27 +2,80 @@
 <html lang="en">
 <%- include('includes/head') %>
 <body>
-    <%- include('includes/header') %>
-    <main>
-        <form action="/edit-post/<%= post.id %>" method="POST" enctype="multipart/form-data">
+    <nav class="navbar">
+        <div class="navbar-content">
+            <div class="logo">
+                    <h1 class="title-main">EDITING</h1>
+                </div>
+            <div class="nav-buttons">
+                
+            <% if (user) { %>
+            
+                <a href="/" class="btn btn-secondary">
+                     ← BACK
+                </a>
+                
+                <% } else { %>
+                <a class="btn btn-secondary" href="/login">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+                    </svg><span>LOG IN</span>
+                </a>
+                <% } %>
+            </div>
+        </div>
+    </nav>
+    <main class="main-content">
+        <h2 class="page-title">EDIT YOUR POST</h2>
+        <form class="form-container max-width-56rem" action="/edit-post/<%= post.id %>" method="POST" enctype="multipart/form-data">
         <% errors.forEach(error => { %> 
         <p class="notice"><%= error %></p>
         <% }) %>
-        <fieldset>
-            <legend>Edit Post</legend>
-            <label for="title"><small>Title</small></label>
-            <input type="text" value="<%= post.title %>" id="title" name="title" autocomplete="off">
+
+            <div class="form-group">
+              <label class="form-label label-large" for="title"><small>Title</small></label>
+              <input type="text" class="form-input font-cinzel input-large" value="<%= post.title %>" required type="text" id="title" name="title" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label label-large" for="body"><small>Content</small></label>
+              <textarea class="form-input input-large" rows="5" placeholder="Write content" required name="body" id="body"><%= post.body %></textarea>
+            </div>
+
+            <br/>
             
-            <label for="body"><small>content</small></label>
-            <textarea name="body" id="body"><%= post.body %></textarea>
+            <div class="form-group">
+              <div id="uploadPrompt">
+              <label class="form-label label-large">Replace Image</label>
+              <!-- Clicking this label opens the file picker without JavaScript -->
+              <label class="upload-area" id="uploadArea" for="fileInput" data-existing-image="<%= post.imageurl %>">
+                <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
+                </svg>
+                <p class="upload-text">Click to replace the image</p>
+                <p class="upload-subtext">PNG, JPG up to 10MB</p>
+              </label>
+              </div>
+            <input type="file" id="fileInput" name="image" accept="image/*" class="file-input">
+            <p id="uploadError" class="upload-error">
+              <% if (typeof errors !== 'undefined' && errors && errors.length) { %>
+                <% errors.forEach(function(err){ if (err && err.toLowerCase().includes('image')) { %>
+                  <%= err %>
+                <% } }) %>
+              <% } %>
+            </p>
+          </div>
             <br/>
-            <label for="image"><small>Replace image (optional)</small></label>
-            <input type="file" id="image" name="image" accept="image/*" />
-            <br/>
-            <button>save changes</button>
-        </fieldset>
+            <button class="btn-submit btn-submit--big">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>
+          </svg>
+          <span>SAVE</span>
+          </button>
+   
         </form>
     </main>
     <%- include('includes/footer') %>
 </body>
+<script src="/js/create-post.js" defer></script>
 </html>
