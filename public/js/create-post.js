@@ -3,6 +3,35 @@
   if (typeof window === 'undefined') return;
 
   document.addEventListener('DOMContentLoaded', function(){
+    // Simple draft autosave for title/body so users don't lose typed content
+    const titleInput = document.getElementById('title');
+    const bodyInput = document.getElementById('body');
+    const DRAFT_KEY = 'post-draft-v1';
+
+    // Restore draft only when inputs are empty (server-rendered values take precedence)
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (titleInput && !titleInput.value && draft.title) titleInput.value = draft.title;
+        if (bodyInput && !bodyInput.value && draft.body) bodyInput.value = draft.body;
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+
+    function saveDraft(){
+      try {
+        const data = { title: titleInput ? titleInput.value : '', body: bodyInput ? bodyInput.value : '' };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+      } catch (e) {}
+    }
+
+    if (titleInput) titleInput.addEventListener('input', saveDraft);
+    if (bodyInput) bodyInput.addEventListener('input', saveDraft);
+
+    // If the form successfully posts (redirects) the draft will remain; provide a manual clear button could be added later.
+
     const fileInput = document.getElementById('fileInput');
     const uploadArea = document.getElementById('uploadArea');
     if (!fileInput || !uploadArea) return;

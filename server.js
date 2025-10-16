@@ -296,18 +296,18 @@ app.post('/login', loginLimiter, async (req, res) => {
     if (req.body.username.trim()=="") errors=["invalid username or password"]
     if (req.body.password=="") errors=["invalid username or password"]
     if (errors.length){
-        return res.render("login",{errors})
+        return res.render("login",{errors, username: req.body.username})
     }
     const [userInQuestion] = await sql`SELECT * FROM users WHERE username = ${req.body.username}`
 
     if (!userInQuestion){
         errors = ["Invalid username or password"]
-        return res.render("login", {errors})
+        return res.render("login", {errors, username: req.body.username})
     }
     const match = bcrypt.compareSync(req.body.password,userInQuestion.password)
     if (!match){
         errors = ["Invalid username or password"]
-        return res.render("login", {errors})
+        return res.render("login", {errors, username: req.body.username})
     }
     const ourTokenValue = jwt.sign({exp: Math.floor(Date.now()/1000) + (60*60), userid: userInQuestion.id, username: userInQuestion.username}, process.env.JWTSECRET)
     
@@ -382,7 +382,7 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
         let newImageKey = null;
         // Require an image for edits as well
         if (!req.file) {
-            const msg = 'Please upload an image for this post.';
+            const msg = 'Upload an image for this post.';
             const fieldErrors = { image: [msg] };
             return res.render('edit-post', { fieldErrors, title: req.body.title, body: req.body.body, post });
         }
@@ -402,6 +402,7 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
                 return res.render("edit-post", { fieldErrors, title: req.body.title, body: req.body.body, post })
             }
         }
+        
 
         if (newImageUrl) {
             console.log('Updating post with new image URL...')
@@ -438,10 +439,10 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
         // If the error is a Multer file size limit error it will have code 'LIMIT_FILE_SIZE'
         if (err && err.code === 'LIMIT_FILE_SIZE') {
             res.locals.errors = ['Selected image is too large. Maximum allowed size is 10 MB.']
-            return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null) })
+            return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null), title: req.body && req.body.title ? req.body.title : (post ? post.title : ''), body: req.body && req.body.body ? req.body.body : (post ? post.body : '') })
         }
         res.locals.errors = ['An internal error occurred. Please try again later.']
-        return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null) })
+        return res.render('edit-post', { errors: res.locals.errors, post: (typeof post !== 'undefined' ? post : null), title: req.body && req.body.title ? req.body.title : (post ? post.title : ''), body: req.body && req.body.body ? req.body.body : (post ? post.body : '') })
     }
 })
 
@@ -508,26 +509,28 @@ app.get("/download/:id", async (req, res) => {
 app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=> {
     const errors = share(req)
     if (errors.length){
-        return res.render("create-post",{errors})
+        // preserve submitted values
+        return res.render("create-post",{errors, title: req.body.title, body: req.body.body})
     }
+
     // Require an image to be uploaded for posts
-        if (!req.file) {
-            const msg = 'Please upload an image for this post.';
-            const fieldErrors = { image: [msg] };
-            return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
+    if (!req.file) {
+        const msg = 'Upload an image for this post.';
+        const fieldErrors = { image: [msg] };
+        return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
     }
+
     let imageUrl = null
-    if (req.file) {
-        try {
-            const uploaded = await uploadToSupabase(req.file)
-            imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
-        } catch (e) {
-            console.error("Upload to Supabase failed", e)
-            const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
-            res.locals.errors = [msg]
-            return res.render("create-post", { errors: res.locals.errors })
-        }
+    try {
+        const uploaded = await uploadToSupabase(req.file)
+        imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
+    } catch (e) {
+        console.error("Upload to Supabase failed", e)
+        const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
+        const fieldErrors = { image: [msg] };
+        return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
     }
+
     const [realPost] = await sql`
         INSERT INTO posts (title, body, authorid, createDate, imageurl) 
         VALUES (${req.body.title}, ${req.body.body}, ${req.user.userid}, ${new Date().toISOString()}, ${imageUrl})

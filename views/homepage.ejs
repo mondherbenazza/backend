@@ -26,7 +26,7 @@
             <h2 style="margin-bottom: 15px;">Create an account</h2>
           <div class="form-group">
             <label class="form-label" for="username">Username</label>
-            <input type="text" id="username" name="username" class="form-input" autocomplete="off" required>
+            <input type="text" id="username" name="username" class="form-input" autocomplete="off" required value="<%= typeof username !== 'undefined' ? username : '' %>">
             <% if (typeof fieldErrors !== 'undefined' && fieldErrors.username && fieldErrors.username.length) { %>
               <% fieldErrors.username.forEach(function(msg){ %>
                 <p class="input-error"><%= msg %></p>
