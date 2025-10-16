@@ -378,11 +378,19 @@ br{
 
 .form-label {
   display: block;
-  color: #d1d5db;
+  color: #f3f4f6;
   margin-bottom: 0.5rem;
   font-family: 'Orbitron', sans-serif;
   font-size: 0.875rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.form-label .required {
+  color: #f87171;
+  margin-left: 0.25rem;
+  font-weight: 700;
 }
 
 .form-input {
@@ -401,6 +409,10 @@ br{
   box-shadow: 0 0 20px rgba(185, 28, 28, 0.5);
 }
 
+.form-input::placeholder {
+  color: #9ca3af;
+}
+
 .upload-area {
   cursor: pointer;
   display: block;
@@ -409,6 +421,15 @@ br{
   text-align: center;
   background: rgba(0, 0, 0, 0.6);
   transition: all 0.3s;
+}
+
+.upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 108px;
 }
 
 .upload-area:hover {
@@ -749,9 +770,11 @@ br{
 }
 
 .upload-text {
-  color: #9ca3af;
+  color: #e5e7eb;
   font-family: 'Orbitron', sans-serif;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 .upload-subtext {
@@ -807,6 +830,12 @@ br{
   border-radius: 6px;
   margin-top: 0.75rem;
   font-size: 0.95rem;
+}
+
+.input-error {
+  color: #ffb4b4;
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
 }
   gap: 1rem;
 }

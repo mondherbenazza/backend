@@ -4,16 +4,14 @@
 <body>
     <nav class="navbar">
         <div class="navbar-content">
-            <div class="logo">
-                    <h1 class="title-main">EDITING</h1>
-                </div>
-            <div class="nav-buttons">
+          <h1 style="margin-top: 15px;" class="title-main">EDIT</h1>
+          <div class="nav-buttons">
                 
             <% if (user) { %>
             
-                <a href="/" class="btn btn-secondary">
-                     ← BACK
-                </a>
+       <a href="/dashboard" class="btn btn-secondary">
+         ← BACK
+       </a>
                 
                 <% } else { %>
                 <a class="btn btn-secondary" href="/login">
@@ -28,18 +26,20 @@
     <main class="main-content">
         <h2 class="page-title">EDIT YOUR POST</h2>
         <form class="form-container max-width-56rem" action="/edit-post/<%= post.id %>" method="POST" enctype="multipart/form-data">
-        <% errors.forEach(error => { %> 
-        <p class="notice"><%= error %></p>
-        <% }) %>
+        <% if (typeof errors !== 'undefined' && errors && errors.length) { %>
+          <% errors.forEach(error => { %>
+            <p class="notice"><%= error %></p>
+          <% }) %>
+        <% } %>
 
             <div class="form-group">
               <label class="form-label label-large" for="title"><small>Title</small></label>
-              <input type="text" class="form-input font-cinzel input-large" value="<%= post.title %>" required type="text" id="title" name="title" autocomplete="off">
+              <input type="text" class="form-input font-cinzel input-large" value="<%= typeof title !== 'undefined' ? title : post.title %>" required type="text" id="title" name="title" autocomplete="off">
             </div>
 
             <div class="form-group">
               <label class="form-label label-large" for="body"><small>Content</small></label>
-              <textarea class="form-input input-large" rows="5" placeholder="Write content" required name="body" id="body"><%= post.body %></textarea>
+              <textarea class="form-input input-large" rows="5" placeholder="Write content" required name="body" id="body"><%= typeof body !== 'undefined' ? body : post.body %></textarea>
             </div>
 
             <br/>
@@ -58,7 +58,11 @@
               </div>
             <input type="file" id="fileInput" name="image" accept="image/*" class="file-input">
             <p id="uploadError" class="upload-error">
-              <% if (typeof errors !== 'undefined' && errors && errors.length) { %>
+              <% if (typeof fieldErrors !== 'undefined' && fieldErrors && fieldErrors.image && fieldErrors.image.length) { %>
+                <% fieldErrors.image.forEach(function(err){ %>
+                  <%= err %>
+                <% }) %>
+              <% } else if (typeof errors !== 'undefined' && errors && errors.length) { %>
                 <% errors.forEach(function(err){ if (err && err.toLowerCase().includes('image')) { %>
                   <%= err %>
                 <% } }) %>

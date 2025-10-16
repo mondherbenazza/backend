@@ -11,20 +11,21 @@
 
     <div class="center-content">
       <div class="welcome-container">
-        <div class="icon-container">
+        <div style="margin-top: 10px;" class="icon-container">
           <svg class="icon-large animate-pulse-slow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
             <circle cx="12" cy="12" r="3"/>
           </svg>
           <h1 class="title-main">ENTER</h1>
-          <p class="subtitle">IF YOU DARE</p>
         </div>
 
         
         <form class="form-container" action="/login" method="POST">
-        <% errors.forEach(error => { %> 
-        <p class="notice"><%= error %></p>
-        <% }) %>
+        <% if (typeof errors !== 'undefined' && errors && errors.length) { %>
+          <% errors.forEach(error => { %>
+            <p class="notice"><%= error %></p>
+          <% }) %>
+        <% } %>
           <div class="form-group">
             <label class="form-label" for="username">Username</label>
             <input type="text" id="username" name="username" class="form-input" autocomplete="off" required>

@@ -227,14 +227,6 @@ function validateEnv() {
 }
 
 validateEnv();
-
-// Redirect HTTP -> HTTPS in production
-app.use((req, res, next) => {
-    if (process.env.NODE_ENV === 'production' && req.secure === false && req.get('x-forwarded-proto') !== 'https') {
-        return res.redirect(301, `https://${req.get('host')}${req.originalUrl}`);
-    }
-    next();
-});
 app.set("view engine", "ejs");
 app.use(express.urlencoded({extended: false}))
 app.use(express.static("public"));
@@ -268,6 +260,12 @@ app.get("/", async (req, res) => {
         return res.render("dashboard",{posts})
     }
     res.render("homepage");
+});
+
+// Explicit dashboard route (useful for Back links)
+app.get('/dashboard', mustBeLoggedIn, async (req, res) => {
+    const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
+    return res.render('dashboard', { posts })
 });
 app.get("/login",(req, res)=> {
     res.render("login")
@@ -377,10 +375,18 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
         }
         const errors = share(req)
         if (errors.length) {
-            return res.render("edit-post", {errors})
+            // Preserve submitted title/body so the user doesn't lose their edits
+            return res.render("edit-post", { errors, title: req.body.title, body: req.body.body, post })
         }
         let newImageUrl = null;
         let newImageKey = null;
+        // Require an image for edits as well
+        if (!req.file) {
+            const msg = 'Please upload an image for this post.';
+            const fieldErrors = { image: [msg] };
+            return res.render('edit-post', { fieldErrors, title: req.body.title, body: req.body.body, post });
+        }
+
         if (req.file) {
             try {
                 const uploaded = await uploadToSupabase(req.file)
@@ -392,8 +398,8 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
                 console.error("Upload to Supabase failed", e)
                 // Multer file size exceeded will be caught earlier, but if it bubbles here check code/message
                 const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
-                res.locals.errors = [msg]
-                return res.render("edit-post", { errors: res.locals.errors, post })
+                const fieldErrors = { image: [msg] };
+                return res.render("edit-post", { fieldErrors, title: req.body.title, body: req.body.body, post })
             }
         }
 
@@ -504,6 +510,12 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
     if (errors.length){
         return res.render("create-post",{errors})
     }
+    // Require an image to be uploaded for posts
+        if (!req.file) {
+            const msg = 'Please upload an image for this post.';
+            const fieldErrors = { image: [msg] };
+            return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
+    }
     let imageUrl = null
     if (req.file) {
         try {
@@ -525,27 +537,32 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
 })
 
 app.post("/register", async (req, res)=>{
-    const errors = []
+    
+    const fieldErrors = { username: [], password: [] }
     if (typeof req.body.username !== "string") req.body.username=""
     if (typeof req.body.password !== "string") req.body.password=""
     
     req.body.username=req.body.username.trim()
 
-    if (!req.body.username) errors.push("Invalid username")
-    if (req.body.username && req.body.username.length<3) errors.push("username < 3")
-    if (req.body.username && req.body.username.length>10) errors.push("username > 10")
-    if (req.body.username && !req.body.username.match(/^[a-zA-Z0-9]+$/)) errors.push("username a z 1 9")
+    if (!req.body.username) { fieldErrors.username.push("Invalid username") }
+    if (req.body.username && req.body.username.length<3) {  fieldErrors.username.push("Username must be at least 3 characters") }
+    if (req.body.username && req.body.username.length>10) {  fieldErrors.username.push("Username must be at most 10 characters") }
+    if (req.body.username && !req.body.username.match(/^[a-zA-Z0-9]+$/)) { fieldErrors.username.push("Username may only contain letters and numbers") }
 
     const [usernameCheck] = await sql`SELECT * FROM users WHERE username = ${req.body.username}`
     
-    if (usernameCheck) errors.push("Username exists")
+    if (usernameCheck) { fieldErrors.username.push("Username already exists") }
 
-    if (!req.body.password) errors.push("Invalid password")
-    if (req.body.password && req.body.password.length<5) errors.push("password < 5")
-    if (req.body.password && req.body.password.length>10) errors.push("password > 11")
-            
-    if (errors.length){
-        return res.render("homepage",{errors})
+    if (!req.body.password) {fieldErrors.password.push("Invalid password") }
+    if (req.body.password && req.body.password.length<5) {  fieldErrors.password.push("Password must be at least 5 characters") }
+    if (req.body.password && req.body.password.length>64) {  fieldErrors.password.push("Password must be at most 64 characters") }
+    // Require at least one letter and one number for stronger passwords
+    if (req.body.password && (!/[A-Za-z]/.test(req.body.password) || !/\d/.test(req.body.password))) {
+        fieldErrors.password.push("Password must contain at least one letter and one number")
+    }
+
+    if (fieldErrors.username.length || fieldErrors.password.length){
+        return res.render("homepage",{fieldErrors})
     }
 
     const salt= bcrypt.genSaltSync(10)
@@ -580,10 +597,10 @@ app.use(async function multerErrorHandler(err, req, res, next) {
         const msg = 'Selected image is too large. Maximum allowed size is 10 MB.';
 
         try {
-            // Render create form if this was a create request
+            // Render create form if this was a create request and preserve title/body
             if (req.path && req.path.startsWith('/create-post')) {
-                res.locals.errors = [msg];
-                return res.status(400).render('create-post', { errors: res.locals.errors });
+                const fieldErrors = { image: [msg] };
+                return res.status(400).render('create-post', { fieldErrors, title: req.body && req.body.title ? req.body.title : '', body: req.body && req.body.body ? req.body.body : '' });
             }
 
             // Render edit form if this was an edit request; attempt to load post so template can render
@@ -601,8 +618,8 @@ app.use(async function multerErrorHandler(err, req, res, next) {
                         post = null;
                     }
                 }
-                res.locals.errors = [msg];
-                return res.status(400).render('edit-post', { errors: res.locals.errors, post });
+                const fieldErrors = { image: [msg] };
+                return res.status(400).render('edit-post', { fieldErrors, title: req.body && req.body.title ? req.body.title : '', body: req.body && req.body.body ? req.body.body : '', post });
             }
         } catch (renderErr) {
             console.error('Error while handling Multer error:', renderErr && renderErr.stack ? renderErr.stack : renderErr);

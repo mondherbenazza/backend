@@ -7,29 +7,22 @@
     <div class="bg-gradient"></div>
         <nav class="navbar">
         <div class="navbar-content">
-            <div class="logo">
-                <h1>WELCOME</h1>
-            </div>
+            <h1 style="margin-top: 15px;" class="title-main">DASHBOARD</h1>
             <div class="nav-buttons">
             <% if (user) { %>
             
-                <a class="btn btn-primary" href="/create-post">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M5 12h14"/><path d="M12 5v14"/>
-                    </svg>CREATE POST
-                </a>
-                <a href="/login" class="btn btn-secondary">
+                
+                <a class="btn btn-secondary" href="/logout">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
-                    </svg>
-                    Logout
+                    </svg><span>LOG OUT</span>
                 </a>
 
                 <% } else { %>
                 <a class="btn btn-secondary" href="/login">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
-                    </svg>LOG IN
+                    </svg><span>LOG IN</span>
                 </a>
                 <% } %>
             </div>
@@ -37,15 +30,21 @@
         </nav>
         <main class="main-content">
         <% if (posts.length == 0) { %>
-        <h2 class="page-title">Hello <%= user.username %>, Publish you posts here</h2>
-        <div class="nav-buttons">
-            <a class="btn btn-primary" href="/create-post">
+            <div class="nav-buttons">
+            <a style="margin-bottom: 15px;" class="btn btn-primary" href="/create-post">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M5 12h14"/><path d="M12 5v14"/>
-                </svg><span>START NOW !</span>
+                </svg><span>CREATE POST NOW !</span>
             </a>
         </div>
+        <h2 class="page-title">Hello <%= user.username %>, Publish you posts here</h2>
+        
         <% } else { %>
+            <a style="margin-bottom: 15px;" class="btn btn-primary" href="/create-post">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14"/><path d="M12 5v14"/>
+                </svg><span>CREATE POST</span>
+            </a>
         <h2 class="page-title"><%= user.username %>'s posts</h2>
         <% } %>
         <br/>
@@ -76,4 +75,4 @@
     
     <%- include('includes/footer') %>
 </body>
-</html>
+
