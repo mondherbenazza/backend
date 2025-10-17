@@ -14,7 +14,7 @@
       <div class="welcome-container">
         <div class="icon-container">
           
-          <h1 class="title-main" style="margin-bottom: 15px;">WELCOME</h1>
+          <h1 class="title-main" style="margin-top: 15px;margin-bottom: 15px;">WELCOME</h1>
           
         </div>
         <form class="form-container" action="/register" method="POST">
@@ -34,15 +34,22 @@
             <% } %>
           </div>
 
-          <div class="form-group">
+          <div class="form-group password-group">
             <label class="form-label" for="password">Password</label>
-            <input type="password" class="form-input" id="password" name="password" autocomplete="off" required>
+            <div class="password-input-container">
+              <input type="password" class="form-input" id="password" name="password" autocomplete="off" required>
+              <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
             <% if (typeof fieldErrors !== 'undefined' && fieldErrors.password && fieldErrors.password.length) { %>
               <% fieldErrors.password.forEach(function(msg){ %>
                 <p class="input-error"><%= msg %></p>
               <% }) %>
             <% } %>
-            <br/>
           </div>
 
           <button class="btn-submit">SIGN UP</button>
@@ -50,6 +57,7 @@
       </div>
     </div>
   </div>
+  <%- include('includes/footer') %>
 </body>
-<%- include('includes/footer') %>
+  <script src="/js/password-toggle.js" defer></script>
 </html>

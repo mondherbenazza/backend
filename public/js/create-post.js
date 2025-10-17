@@ -30,7 +30,15 @@
     if (titleInput) titleInput.addEventListener('input', saveDraft);
     if (bodyInput) bodyInput.addEventListener('input', saveDraft);
 
-    // If the form successfully posts (redirects) the draft will remain; provide a manual clear button could be added later.
+    // Clear draft on form submit to prevent pre-filling after successful post creation
+    const form = document.querySelector('form[action="/create-post"]');
+    if (form) {
+      form.addEventListener('submit', function() {
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (e) {}
+      });
+    }
 
     const fileInput = document.getElementById('fileInput');
     const uploadArea = document.getElementById('uploadArea');

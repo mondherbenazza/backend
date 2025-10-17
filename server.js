@@ -380,12 +380,6 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
         }
         let newImageUrl = null;
         let newImageKey = null;
-        // Require an image for edits as well
-        if (!req.file) {
-            const msg = 'Upload an image for this post.';
-            const fieldErrors = { image: [msg] };
-            return res.render('edit-post', { fieldErrors, title: req.body.title, body: req.body.body, post });
-        }
 
         if (req.file) {
             try {

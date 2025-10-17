@@ -413,6 +413,44 @@ br{
   color: #9ca3af;
 }
 
+.password-group {
+  position: relative;
+}
+
+.password-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-container .form-input {
+  flex: 1;
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s;
+}
+
+.password-toggle:hover {
+  color: #f3f4f6;
+}
+
+.eye-icon {
+  width: 20px;
+  height: 20px;
+}
+
 .upload-area {
   cursor: pointer;
   display: block;
