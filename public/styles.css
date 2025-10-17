@@ -303,7 +303,7 @@ br{
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 4rem 2rem 2rem;
 }
 
 .welcome-container {
@@ -326,7 +326,7 @@ br{
 
 .title-main {
   font-family: 'Cinzel', serif;
-  font-size: 3.75rem;
+  font-size: 3.2rem;
   font-weight: 700;
   color: #b91c1c;
   filter: drop-shadow(0 0 20px rgba(185, 28, 28, 0.9));
@@ -578,7 +578,7 @@ br{
 
 .page-title {
   font-family: 'Cinzel', serif;
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: 700;
   color: #ef4444;
   margin-bottom: 2rem;
