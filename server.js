@@ -205,9 +205,9 @@ app.use(helmet({
     }
 }));
 
-// If running behind a proxy (Heroku, Cloud Run, etc.) enable trust proxy
+// If running behind a proxy (Heroku, Cloud Run, Railway, etc.) enable trust proxy
 // so express can correctly detect secure (HTTPS) requests.
-if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
+if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production' || process.env.RENDER === 'true' || process.env.RAILWAY_PROJECT_ID) {
     app.set('trust proxy', 1);
 }
 
