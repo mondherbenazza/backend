@@ -640,6 +640,9 @@ br{
   color: #f87171;
   margin-bottom: 0.5rem;
   transition: color 0.3s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .post-card:hover .post-title {
@@ -692,6 +695,9 @@ br{
   color: #ef4444;
   margin-bottom: 1rem;
   letter-spacing: 0.1em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .article-meta {
@@ -703,6 +709,11 @@ br{
 
 .article-body {
   margin-bottom: 3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .article-paragraph {
@@ -846,6 +857,23 @@ br{
 .btn-inline-small {
   display: inline-flex;
   padding: 0.75rem 1.5rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-equal-width {
+  flex: 1;
+  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
 }
 
 .upload-preview {

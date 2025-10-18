@@ -186,8 +186,8 @@ const app = express();
 const supabaseOrigin = supabaseUrl ? (() => { try { return new URL(supabaseUrl).origin } catch(e){ return null } })() : null;
 const cspDirectives = {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
     imgSrc: ["'self'", 'data:', supabaseOrigin || "'self'"],
     connectSrc: ["'self'", supabaseOrigin || "'self'"],
     fontSrc: ["'self'", 'https:', 'data:'],
