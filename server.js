@@ -68,29 +68,16 @@ async function compressImage(buffer, mimetype) {
             return buffer;
         }
 
-        // Compress based on image type
-        let compressedBuffer;
-        if (mimetype === 'image/jpeg' || mimetype === 'image/jpg') {
-            compressedBuffer = await sharpInstance
-                .jpeg({ quality: 85, progressive: true })
-                .toBuffer();
-        } else if (mimetype === 'image/png') {
-            compressedBuffer = await sharpInstance
-                .png({ quality: 85, compressionLevel: 9 })
-                .toBuffer();
-        } else if (mimetype === 'image/webp') {
-            compressedBuffer = await sharpInstance
-                .webp({ quality: 85 })
-                .toBuffer();
-        } else {
-            // For other formats, convert to JPEG
-            compressedBuffer = await sharpInstance
-                .jpeg({ quality: 85, progressive: true })
-                .toBuffer();
-        }
+        // Convert ALL images to WebP for maximum compression
+        const compressedBuffer = await sharpInstance
+            .webp({
+                quality: 85,  // Lossy compression quality
+                effort: 6     // Balance between speed and compression (1-6)
+            })
+            .toBuffer();
 
         const compressionRatio = ((buffer.length - compressedBuffer.length) / buffer.length * 100).toFixed(1);
-        console.log(`Image compressed: ${(buffer.length / 1024).toFixed(1)}KB → ${(compressedBuffer.length / 1024).toFixed(1)}KB (${compressionRatio}% reduction)`);
+        console.log(`Image compressed to WebP: ${(buffer.length / 1024).toFixed(1)}KB → ${(compressedBuffer.length / 1024).toFixed(1)}KB (${compressionRatio}% reduction)`);
         
         return compressedBuffer;
     } catch (error) {
@@ -112,15 +99,14 @@ async function uploadToSupabase(file) {
     // Compress the image
     const compressedBuffer = await compressImage(file.buffer, file.mimetype);
     
-    const extension = path.extname(file.originalname).toLowerCase() || "";
     const safeBase = path
-        .basename(file.originalname, extension)
+        .basename(file.originalname, path.extname(file.originalname))
         .replace(/[^a-z0-9-_]/gi, "_");
-    const key = `posts/${Date.now()}_${safeBase}${extension}`;
+    const key = `posts/${Date.now()}_${safeBase}.webp`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
         .from(supabaseBucket)
-        .upload(key, compressedBuffer, { contentType: file.mimetype, upsert: false });
+        .upload(key, compressedBuffer, { contentType: 'image/webp', upsert: false });
     
     if (uploadError) {
         console.error("Supabase upload error:", uploadError);
@@ -489,10 +475,10 @@ app.get("/download/:id", async (req, res) => {
         }
         
         const imageBuffer = await response.arrayBuffer()
-        const filename = `${post.title.replace(/[^a-z0-9]/gi, '_')}.jpg`
+        const filename = `${post.title.replace(/[^a-z0-9]/gi, '_')}.webp`
         
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-        res.setHeader('Content-Type', 'image/jpeg')
+        res.setHeader('Content-Type', 'image/webp')
         res.send(Buffer.from(imageBuffer))
     } catch (error) {
         console.error("Download error:", error)

@@ -363,7 +363,8 @@ br{
 }
 
 .label-large {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
+  font-family: 'Arial', sans-serif;
 }
 
 .input-large {
@@ -401,6 +402,13 @@ br{
   padding: 0.75rem 1rem;
   font-family: inherit;
   transition: all 0.3s;
+}
+
+.form-input[type="password"] {
+  font-family: 'Courier New', monospace;
+  -webkit-text-security: disc;
+  -moz-text-security: disc;
+  text-security: disc;
 }
 
 .form-input:focus {
@@ -634,7 +642,7 @@ br{
 }
 
 .post-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Arial', sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: #f87171;
@@ -688,7 +696,7 @@ br{
 }
 
 .article-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Arial', sans-serif;
   font-size: 3rem;
   font-weight: 700;
   color: #ef4444;
@@ -713,6 +721,9 @@ br{
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  font-family: 'Arial', sans-serif;
+  font-size: 1.5rem;
+  line-height: 1.6;
 }
 
 .article-paragraph {
@@ -747,14 +758,14 @@ br{
 }
 
 .footer-left .footer-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Arial', sans-serif;
   color: #ef4444;
   margin-bottom: 0.25rem;
 }
 
 .footer-desc {
   color: #9ca3af;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Arial', sans-serif;
   font-size: 0.875rem;
 }
 
@@ -771,13 +782,13 @@ br{
 .footer-nav a {
   color: #fca5a5;
   text-decoration: none;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Arial', sans-serif;
 }
 
 .footer-copy {
   display: block;
   color: #6b7280;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Arial', sans-serif;
   font-size: 0.8125rem;
 }
 
@@ -863,6 +874,15 @@ br{
   gap: 1rem;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.btn-icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  width: 48px;
+  height: 48px;
 }
 
 .upload-preview {

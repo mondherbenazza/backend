@@ -33,20 +33,20 @@
         <% } %>
 
             <div class="form-group">
-              <label class="form-label label-large" for="title"><small>Title</small></label>
-              <input type="text" class="form-input font-cinzel input-large" value="<%= typeof title !== 'undefined' ? title : post.title %>" required type="text" id="title" name="title" autocomplete="off">
+              <label class="form-label label-large" for="title" style="font-size: 1.5rem;">Title</label>
+              <input type="text" class="form-input input-large" style="font-family: 'Arial', sans-serif; font-size: 1.2rem;" value="<%= typeof title !== 'undefined' ? title : post.title %>" required type="text" id="title" name="title" autocomplete="off">
             </div>
 
             <div class="form-group">
-              <label class="form-label label-large" for="body"><small>Content</small></label>
-              <textarea class="form-input input-large" rows="5" placeholder="Write content" required name="body" id="body"><%= typeof body !== 'undefined' ? body : post.body %></textarea>
+              <label class="form-label label-large" for="body" style="font-size: 1.5rem;">Content</label>
+              <textarea class="form-input input-large" style="font-family: 'Arial', sans-serif; font-size: 1.2rem;" rows="5" placeholder="Write content" required name="body" id="body"><%= typeof body !== 'undefined' ? body : post.body %></textarea>
             </div>
 
             <br/>
             
             <div class="form-group">
               <div id="uploadPrompt">
-              <label class="form-label label-large">Replace Image (optional)</label>
+              <label class="form-label label-large" style="font-size: 1.5rem;">Replace Image (optional)</label>
               <!-- Clicking this label opens the file picker without JavaScript -->
               <label class="upload-area" id="uploadArea" for="fileInput" data-existing-image="<%= post.imageurl %>">
                 <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

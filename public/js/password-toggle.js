@@ -21,6 +21,13 @@
           // Change back to eye icon
           icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
         }
+
+        // Update placeholder to show asterisks when password is hidden
+        if (input.type === 'password') {
+          input.placeholder = '*****';
+        } else {
+          input.placeholder = 'Enter your password';
+        }
       });
     });
   });
