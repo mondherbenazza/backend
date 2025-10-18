@@ -39,13 +39,18 @@
           <div class="article-header">
             
             <h2 id="postTitle" class="article-title"><%= post.title %></h2>
-            <p id="postDate" class="article-meta">Posted by <%= post.username %> on <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
+            <p id="postDate" class="article-meta">
+              Posted by <%= post.username %><br>
+              on <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
             </p>
             </div>
         
         <div class="article-body" id="postBody"><%- filterUserHTML(post.body) %></div>
         <div class="article-footer">
-            <% if (isAuthor){ %>
+          
+            
+
+            <% if (isAuthor) { %>
             <div class="button-row">
               <a href="/edit-post/<%= post.id %>" class="btn btn-secondary btn-icon-only">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -66,6 +71,20 @@
                   </svg>
                 </button>
               </form>
+
+              <button id="shareBtn" class="btn btn-primary btn-icon-only">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/>
+                </svg>
+              </button>
+            </div>
+            <% } else { %>
+            <div class="public-actions">
+              <a href="/download/<%= post.id %>" id="downloadLink" class="btn btn-secondary btn-icon-only">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                </svg>
+              </a>
 
               <button id="shareBtn" class="btn btn-primary btn-icon-only">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

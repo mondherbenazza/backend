@@ -529,7 +529,7 @@ app.post("/register", async (req, res)=>{
 
     if (!req.body.username) { fieldErrors.username.push("Invalid username") }
     if (req.body.username && req.body.username.length<3) {  fieldErrors.username.push("Username must be at least 3 characters") }
-    if (req.body.username && req.body.username.length>10) {  fieldErrors.username.push("Username must be at most 10 characters") }
+    if (req.body.username && req.body.username.length>20) {  fieldErrors.username.push("Username must be at most 20 characters") }
     if (req.body.username && !req.body.username.match(/^[a-zA-Z0-9]+$/)) { fieldErrors.username.push("Username may only contain letters and numbers") }
 
     const [usernameCheck] = await sql`SELECT * FROM users WHERE username = ${req.body.username}`
