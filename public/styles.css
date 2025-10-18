@@ -862,18 +862,8 @@ br{
 .button-row {
   display: flex;
   gap: 1rem;
-  margin-bottom: 1rem;
   flex-wrap: wrap;
-}
-
-.btn-equal-width {
-  flex: 1;
-  min-width: 120px;
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
 }
 
 .upload-preview {
