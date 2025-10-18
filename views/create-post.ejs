@@ -29,7 +29,7 @@
 
     <main class="main-content">
         <h2 class="page-title">CREATE NEW POST</h2>
-        <form class="form-container max-width-56rem" action="/create-post" method="POST">
+        <form class="form-container max-width-56rem" action="/create-post" method="POST" enctype="multipart/form-data">
         <% if (typeof errors !== 'undefined' && errors && errors.length) { %>
           <% errors.forEach(error => { %>
             <p class="notice"><%= error %></p>

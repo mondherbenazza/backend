@@ -456,40 +456,7 @@ app.get("/post/:id", async (req, res)=> {
 
 // Health check for hosting providers (Render, etc.)
 app.get('/health', (req, res) => {
-    res.status(200).send("OK");
-});
-
-// Generate signed upload URL for direct client upload to Supabase
-app.post('/generate-upload-url', mustBeLoggedIn, async (req, res) => {
-    try {
-        if (!supabase) {
-            return res.status(500).json({ error: 'Supabase not configured' });
-        }
-
-        // Generate unique key for the upload
-        const timestamp = Date.now();
-        const key = `posts/${timestamp}_upload.webp`; // Assume WebP, but client can upload as is
-
-        const { data, error } = await supabase.storage
-            .from(supabaseBucket)
-            .createSignedUploadUrl(key, {
-                upsert: false // Prevent overwriting
-            });
-
-        if (error) {
-            console.error('Error creating signed URL:', error);
-            return res.status(500).json({ error: 'Failed to generate upload URL' });
-        }
-
-        // Return signed URL and path to client
-        res.json({
-            signedUrl: data.signedUrl,
-            path: data.path
-        });
-    } catch (err) {
-        console.error('Error in /generate-upload-url:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    res.send('OK');
 });
 
 // Download route for images
@@ -519,30 +486,34 @@ app.get("/download/:id", async (req, res) => {
     }
 })
 
-app.post("/create-post", mustBeLoggedIn, async (req,res)=> {
+app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=> {
     const errors = share(req)
     if (errors.length){
         // preserve submitted values
         return res.render("create-post",{errors, title: req.body.title, body: req.body.body})
     }
 
-    // Require an image URL to be provided (uploaded via signed URL)
-    if (!req.body.imageUrl) {
-        const msg = 'Image upload is required.';
+    // Require an image to be uploaded for posts
+    if (!req.file) {
+        const msg = 'Upload an image for this post.';
         const fieldErrors = { image: [msg] };
         return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
     }
 
-    // Validate that the imageUrl is a valid Supabase URL (basic check)
-    if (!req.body.imageUrl.includes('supabase.co') || !req.body.imageUrl.includes('storage/v1/object/public')) {
-        const msg = 'Invalid image URL.';
+    let imageUrl = null
+    try {
+        const uploaded = await uploadToSupabase(req.file)
+        imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
+    } catch (e) {
+        console.error("Upload to Supabase failed", e)
+        const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
         const fieldErrors = { image: [msg] };
         return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
     }
 
     const [realPost] = await sql`
-        INSERT INTO posts (title, body, authorid, createDate, imageurl)
-        VALUES (${req.body.title}, ${req.body.body}, ${req.user.userid}, ${new Date().toISOString()}, ${req.body.imageUrl})
+        INSERT INTO posts (title, body, authorid, createDate, imageurl) 
+        VALUES (${req.body.title}, ${req.body.body}, ${req.user.userid}, ${new Date().toISOString()}, ${imageUrl})
         RETURNING *
     `
     res.redirect(`/post/${realPost.id}`)
@@ -648,4 +619,3 @@ app.use(async function multerErrorHandler(err, req, res, next) {
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
