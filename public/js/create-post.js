@@ -33,11 +33,127 @@
     // Clear draft on form submit to prevent pre-filling after successful post creation
     const form = document.querySelector('form[action="/create-post"]');
     if (form) {
-      form.addEventListener('submit', function() {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault(); // Prevent default form submission
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = 'Uploading...';
+
         try {
-          localStorage.removeItem(DRAFT_KEY);
-        } catch (e) {}
+          // Get the selected file
+          const fileInput = document.getElementById('fileInput');
+          const file = fileInput && fileInput.files && fileInput.files[0];
+
+          if (!file) {
+            alert('Please select an image to upload.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+          }
+
+          // Compress image if needed (reuse existing logic)
+          const compressedFile = await compressImage(file);
+
+          // Request signed upload URL from server
+          const urlResponse = await fetch('/generate-upload-url', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!urlResponse.ok) {
+            throw new Error('Failed to get upload URL');
+          }
+
+          const { signedUrl, path } = await urlResponse.json();
+
+          // Upload directly to Supabase
+          const uploadResponse = await fetch(signedUrl, {
+            method: 'PUT',
+            body: compressedFile,
+            headers: {
+              'Content-Type': compressedFile.type
+            }
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('Upload failed');
+          }
+
+          // Get public URL
+          const publicUrl = signedUrl.split('?')[0]; // Remove query params to get public URL
+
+          // Submit form with image URL
+          const formData = new FormData(form);
+          formData.append('imageUrl', publicUrl);
+
+          const createResponse = await fetch('/create-post', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (createResponse.ok) {
+            // Clear draft and redirect
+            try {
+              localStorage.removeItem(DRAFT_KEY);
+            } catch (e) {}
+            window.location.href = createResponse.headers.get('Location') || '/dashboard';
+          } else {
+            const errorData = await createResponse.json();
+            alert('Failed to create post: ' + (errorData.error || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          alert('Upload failed: ' + error.message);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+        }
       });
+    }
+
+    // Image compression function (moved from server to client)
+    async function compressImage(file) {
+      try {
+        // Only compress image files
+        if (!file.type.startsWith('image/')) {
+          return file;
+        }
+
+        // Skip compression for very small images
+        if (file.size < 100000) { // Less than 100KB
+          return file;
+        }
+
+        // Use browser's Image and Canvas APIs for compression
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Calculate new dimensions (max 1920px width, maintain aspect ratio)
+            const maxWidth = 1920;
+            const ratio = Math.min(maxWidth / img.width, 1);
+            canvas.width = img.width * ratio;
+            canvas.height = img.height * ratio;
+
+            // Draw and compress
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob((blob) => {
+              resolve(blob);
+            }, 'image/webp', 0.85); // Convert to WebP with 85% quality
+          };
+          img.src = URL.createObjectURL(file);
+        });
+      } catch (error) {
+        console.error("Image compression failed, using original:", error.message);
+        return file;
+      }
     }
 
     const fileInput = document.getElementById('fileInput');
