@@ -45,13 +45,6 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_AN
 const supabaseBucket = process.env.SUPABASE_BUCKET || "uploads"; // set your bucket name via env
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-// Log Supabase configuration on startup
-console.log("Supabase config:", {
-    url: supabaseUrl ? "✓ Set" : "✗ Missing",
-    key: supabaseKey ? "✓ Set" : "✗ Missing", 
-    bucket: supabaseBucket,
-    client: supabase ? "✓ Initialized" : "✗ Failed"
-});
 
 async function compressImage(buffer, mimetype) {
     try {
@@ -76,8 +69,6 @@ async function compressImage(buffer, mimetype) {
             })
             .toBuffer();
 
-        const compressionRatio = ((buffer.length - compressedBuffer.length) / buffer.length * 100).toFixed(1);
-        console.log(`Image compressed to WebP: ${(buffer.length / 1024).toFixed(1)}KB → ${(compressedBuffer.length / 1024).toFixed(1)}KB (${compressionRatio}% reduction)`);
         
         return compressedBuffer;
     } catch (error) {
@@ -90,11 +81,6 @@ async function uploadToSupabase(file) {
     if (!file) return null;
     if (!supabase) throw new Error("Supabase client is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE/ANON.");
     
-    console.log("Processing image:", {
-        filename: file.originalname,
-        originalSize: `${(file.buffer.length / 1024).toFixed(1)}KB`,
-        mimetype: file.mimetype
-    });
     
     // Compress the image
     const compressedBuffer = await compressImage(file.buffer, file.mimetype);
@@ -114,7 +100,6 @@ async function uploadToSupabase(file) {
     }
 
     const { data } = supabase.storage.from(supabaseBucket).getPublicUrl(key);
-    console.log("Upload successful, public URL:", data.publicUrl);
     // Return both public URL and the storage key so callers can delete the object later
     return { publicUrl: data.publicUrl, key };
 }
@@ -235,7 +220,6 @@ app.use(function(req, res, next){
         req.user=false
     }
     res.locals.user=req.user
-    console.log(req.user)
     next()
 })
 
@@ -267,15 +251,23 @@ app.get("/logout", (req, res)=>{
 // Define login-specific rate limiter
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.LOGIN_MAX_ATTEMPTS || '5', 10),
+    max: 10,
     standardHeaders: true,
     legacyHeaders: false,
-    message: 'Too many login attempts from this IP, please try again later.'
+    handler: (req, res, next) => {
+        req.rateLimitExceeded = true;
+        next();
+    }
 });
 
 // Apply limiter to login route
 app.post('/login', loginLimiter, async (req, res) => {
     let errors = []
+
+    if (req.rateLimitExceeded) {
+        errors = ["Too many login attempts from this IP, please try again later."]
+        return res.render("login", {errors, username: req.body.username || ""})
+    }
 
     if (typeof req.body.username !== "string") req.body.username=""
     if (typeof req.body.password !== "string") req.body.password=""
@@ -295,16 +287,17 @@ app.post('/login', loginLimiter, async (req, res) => {
         errors = ["Invalid username or password"]
         return res.render("login", {errors, username: req.body.username})
     }
+    console.log(`User ${userInQuestion.username} logged in`)
     const ourTokenValue = jwt.sign({exp: Math.floor(Date.now()/1000) + (60*60), userid: userInQuestion.id, username: userInQuestion.username}, process.env.JWTSECRET)
-    
+
     res.cookie("ourSimpleApp", ourTokenValue,{
         httpOnly: true,
         // Ensure cookies marked Secure when in production (sent only over HTTPS)
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        maxAge: 1000*60*60*24    
+        maxAge: 1000*60*60*24
     })
-    
+
     res.redirect("/")
 
     })
@@ -385,11 +378,9 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
         
 
         if (newImageUrl) {
-            console.log('Updating post with new image URL...')
             const oldPublicUrl = post.imageurl
 
             await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body}, imageurl = ${newImageUrl} WHERE id = ${req.params.id}`
-            console.log('Update with image completed')
 
             // Attempt to delete previous file from Supabase storage (best-effort)
             try {
@@ -400,7 +391,6 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
                         if (removeError) {
                             console.warn('Failed to remove old image from Supabase:', removeError)
                         } else {
-                            console.log('Old image removed from Supabase:', oldKey)
                         }
                     }
                 }
@@ -408,9 +398,7 @@ app.post("/edit-post/:id",mustBeLoggedIn, upload.single("image"), async (req,res
                 console.warn('Error while attempting to remove old Supabase image:', removeErr)
             }
         } else {
-            console.log('Updating post without image change...')
             await sql`UPDATE posts SET title = ${req.body.title}, body = ${req.body.body} WHERE id = ${req.params.id}`
-            console.log('Update without image completed')
         }
         res.redirect(`/post/${req.params.id}`)
     } catch (err) {
@@ -451,7 +439,7 @@ app.get("/post/:id", async (req, res)=> {
         return res.redirect("/")
     }
     const isAuthor =post.authorid === req.user.userid
-    res.render("single-post",{post, isAuthor})
+    res.render("single-post",{post, isAuthor, ogImage: post.imageurl})
 })
 
 // Health check for hosting providers (Render, etc.)
@@ -504,6 +492,7 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
     try {
         const uploaded = await uploadToSupabase(req.file)
         imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
+        console.log(`User ${req.user.username} uploaded an image`)
     } catch (e) {
         console.error("Upload to Supabase failed", e)
         const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
@@ -617,5 +606,4 @@ app.use(async function multerErrorHandler(err, req, res, next) {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
 });

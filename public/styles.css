@@ -111,6 +111,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Favicon styling to make it circular */
+link[rel="icon"] {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
 br{
   color: #7f1d1d;
   box-shadow: 0 0 30px rgba(185, 28, 28, 0.7);
