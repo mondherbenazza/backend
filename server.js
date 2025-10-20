@@ -501,10 +501,11 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
     }
 
     const [realPost] = await sql`
-        INSERT INTO posts (title, body, authorid, createDate, imageurl) 
+        INSERT INTO posts (title, body, authorid, createDate, imageurl)
         VALUES (${req.body.title}, ${req.body.body}, ${req.user.userid}, ${new Date().toISOString()}, ${imageUrl})
         RETURNING *
     `
+    console.log(`New post created by ${req.user.username}: ${req.body.title}`)
     res.redirect(`/post/${realPost.id}`)
 })
 
@@ -539,22 +540,24 @@ app.post("/register", async (req, res)=>{
 
     const salt= bcrypt.genSaltSync(10)
     req.body.password=bcrypt.hashSync(req.body.password, salt)
-    
+
     const [ourUser] = await sql`
-        INSERT INTO users (username, password) 
+        INSERT INTO users (username, password)
         VALUES (${req.body.username}, ${req.body.password})
         RETURNING *
     `
-    
+
+    console.log(`New user registered: ${req.body.username}`)
+
     const ourTokenValue = jwt.sign({exp: Math.floor(Date.now()/1000) + (60*60), userid: ourUser.id, username: ourUser.username}, process.env.JWTSECRET)
-    
+
     res.cookie("ourSimpleApp", ourTokenValue,{
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        maxAge: 1000*60*60*24    
+        maxAge: 1000*60*60*24
     })
-    
+
     res.redirect("/")
     
 })

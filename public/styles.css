@@ -414,7 +414,7 @@ br{
   font-family: 'Courier New', monospace;
   -webkit-text-security: disc;
   -moz-text-security: disc;
-  text-security: disc;
+  /* text-security: disc; */
 }
 
 .form-input:focus {
@@ -725,7 +725,7 @@ br{
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  /* -webkit-line-clamp: 3; */
   -webkit-box-orient: vertical;
   font-family: 'Arial', sans-serif;
   font-size: 1.5rem;
