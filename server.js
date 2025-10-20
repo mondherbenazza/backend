@@ -55,21 +55,22 @@ async function compressImage(buffer, mimetype) {
 
         const sharpInstance = sharp(buffer);
         const metadata = await sharpInstance.metadata();
-        
+
         // Skip compression for very small images
         if (buffer.length < 100000) { // Less than 100KB
             return buffer;
         }
 
         // Convert ALL images to WebP for maximum compression
+        // Increased effort for better compression, reduced quality for faster processing
         const compressedBuffer = await sharpInstance
             .webp({
-                quality: 85,  // Lossy compression quality
-                effort: 6     // Balance between speed and compression (1-6)
+                quality: 75,  // Reduced quality for faster compression
+                effort: 4     // Reduced effort for faster processing
             })
             .toBuffer();
 
-        
+
         return compressedBuffer;
     } catch (error) {
         console.error("Image compression failed, using original:", error.message);
@@ -80,20 +81,21 @@ async function compressImage(buffer, mimetype) {
 async function uploadToSupabase(file) {
     if (!file) return null;
     if (!supabase) throw new Error("Supabase client is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE/ANON.");
-    
-    
+
+
     // Compress the image
     const compressedBuffer = await compressImage(file.buffer, file.mimetype);
-    
+
     const safeBase = path
         .basename(file.originalname, path.extname(file.originalname))
         .replace(/[^a-z0-9-_]/gi, "_");
     const key = `posts/${Date.now()}_${safeBase}.webp`;
 
+    // Use Promise.all for parallel processing if needed, but for now keep sequential
     const { data: uploadData, error: uploadError } = await supabase.storage
         .from(supabaseBucket)
         .upload(key, compressedBuffer, { contentType: 'image/webp', upsert: false });
-    
+
     if (uploadError) {
         console.error("Supabase upload error:", uploadError);
         throw uploadError;
@@ -479,6 +481,7 @@ app.get("/download/:id", async (req, res) => {
 })
 
 app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=> {
+    console.time('post-upload-time')
     const errors = share(req)
     if (errors.length){
         // preserve submitted values
@@ -510,6 +513,7 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
         RETURNING *
     `
     console.log(`New post created by ${req.user.username}: ${req.body.title}`)
+    console.timeEnd('post-upload-time')
     res.redirect(`/post/${realPost.id}`)
 })
 
