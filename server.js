@@ -145,6 +145,10 @@ async function createTables() {
     `;
     // Add imageurl column if it doesn't exist
     await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS imageurl TEXT`;
+
+    // Reset sequences to avoid duplicate key errors
+    await sql`SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM users))`;
+    await sql`SELECT setval('posts_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM posts))`;
 }
 
 // Call createTables on startup
