@@ -132,7 +132,8 @@ async function createTables() {
         CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
+        password TEXT NOT NULL,
+        profilephoto TEXT
         )
     `;
     await sql`
@@ -147,6 +148,9 @@ async function createTables() {
     `;
     // Add imageurl column if it doesn't exist
     await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS imageurl TEXT`;
+
+    // Add profilephoto column if it doesn't exist
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profilephoto TEXT`;
 
     // Reset sequences to avoid duplicate key errors
     await sql`SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM users))`;
@@ -232,16 +236,18 @@ app.use(function(req, res, next){
 app.get("/", async (req, res) => {
     if (req.user){
         const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
+        const [userData] = await sql`SELECT * FROM users WHERE id = ${req.user.userid}`
 
-        return res.render("dashboard",{posts})
+        return res.render("home",{posts, user: { ...req.user, profilephoto: userData.profilephoto }})
     }
     res.render("homepage");
 });
 
-// Explicit dashboard route (useful for Back links)
-app.get('/dashboard', mustBeLoggedIn, async (req, res) => {
+// Explicit home route (useful for Back links)
+app.get('/home', mustBeLoggedIn, async (req, res) => {
     const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
-    return res.render('dashboard', { posts })
+    const [userData] = await sql`SELECT * FROM users WHERE id = ${req.user.userid}`
+    return res.render('home', { posts, user: { ...req.user, profilephoto: userData.profilephoto } })
 });
 app.get("/login",(req, res)=> {
     res.render("login")
@@ -251,6 +257,25 @@ app.get("/logout", (req, res)=>{
     res.clearCookie("ourSimpleApp")
     res.redirect("/")
 })
+
+app.post("/search-user", mustBeLoggedIn, async (req, res) => {
+    const username = req.body.username.trim();
+    if (!username) {
+        return res.redirect("/");
+    }
+
+    const [user] = await sql`SELECT * FROM users WHERE username = ${username}`;
+    if (!user) {
+        return res.render("home", {
+            posts: await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`,
+            user: req.user,
+            searchError: "No username found"
+        });
+    }
+
+    const posts = await sql`SELECT * FROM posts WHERE authorid = ${user.id} ORDER BY createDate DESC`;
+    return res.render("user-profile", { posts, user });
+});
 
 // login route with rate limiter applied below
 
@@ -479,6 +504,25 @@ app.get("/download/:id", async (req, res) => {
         res.status(500).send("Download failed")
     }
 })
+
+app.post("/upload-profile-photo", mustBeLoggedIn, upload.single("profilePhoto"), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        const uploaded = await uploadToSupabase(req.file);
+        if (uploaded && uploaded.publicUrl) {
+            await sql`UPDATE users SET profilephoto = ${uploaded.publicUrl} WHERE id = ${req.user.userid}`;
+            return res.json({ success: true, profilePhotoUrl: uploaded.publicUrl });
+        } else {
+            return res.status(500).json({ error: 'Failed to upload image' });
+        }
+    } catch (error) {
+        console.error('Profile photo upload error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=> {
     console.time('post-upload-time')

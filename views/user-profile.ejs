@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <div class="page-container">
+    <div class="bg-gradient"></div>
+        <nav class="navbar">
+        <div class="navbar-content">
+            <h1 style="margin-top: 15px;" class="title-main"><%= user.username %>'s Profile</h1>
+            <div class="nav-buttons">
+            <button id="search-toggle" class="btn btn-secondary" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+            <div id="search-container" style="display: none;">
+                <form action="/search-user" method="post" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" name="username" placeholder="Search username" style="padding: 0.5rem; border: 2px solid rgba(127, 29, 29, 0.5); background: rgba(0, 0, 0, 0.6); color: #e5e7eb; border-radius: 4px;">
+                    <button type="submit" class="btn btn-primary" style="padding: 0.5rem 0.75rem;">Search</button>
+                </form>
+            </div>
+            <a class="btn btn-secondary" href="/logout">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+                </svg><span>LOG OUT</span>
+            </a>
+        </div>
+        </nav>
+        <main class="main-content">
+        <div class="user-profile-header">
+            <div class="profile-photo-container">
+                <% if (user.profilephoto) { %>
+                    <img id="profile-photo-img" src="<%= user.profilephoto %>" alt="Profile" class="profile-photo">
+                <% } else { %>
+                    <div id="profile-photo-default" class="profile-photo-default">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                <% } %>
+            </div>
+            <h2 class="page-title"><%= user.username %>'s Posts</h2>
+        </div>
+        <br/>
+        <div class="posts-grid">
+            <% posts.forEach(post =>{ %>
+                    <% if (post.imageurl) { %>
+                    <a class="post-card" href="/post/<%= post.id %>">
+                    <div class="post-image-container">
+                        <img class="post-image" src="<%= post.imageurl %>" alt="thumb"  />
+                        <div class="post-image-overlay"></div>
+                    </div>
+                    <% } %>
+                    
+                    <div class="post-content">
+                        <h3 class="post-title" >
+                            <%= post.title %>
+                        </h3>
+                        <p class="post-date">
+                            <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
+                        </p>
+                    </div>
+                    </p>
+                    </a>
+            <% }) %>
+        </div>
+        </main>
+    </div>
+    
+    <%- include('includes/footer') %>
+</body>
+<script>
+document.getElementById('search-toggle').addEventListener('click', function() {
+    const container = document.getElementById('search-container');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+});
+</script>
+</html>
