@@ -973,3 +973,103 @@ textarea.form-input {
     font-size: 2rem;
   }
 }
+
+/* Content Protection Styles - Netflix-style protection */
+img, video {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
+  -webkit-touch-callout: none !important;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: none !important; /* Prevent mobile gestures */
+  -webkit-user-drag: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Prevent text selection on images and videos */
+.article-image, .post-image, img, video {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+/* Prevent dragging */
+.article-image-container, .post-image-container {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.article-image-container img, .post-image-container img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+/* Disable image context menu */
+img::selection, video::selection {
+  background: transparent;
+}
+
+img::-moz-selection, video::-moz-selection {
+  background: transparent;
+}
+
+/* Mobile-specific protections */
+@media (max-width: 768px) {
+  img, video, canvas {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    touch-action: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+    tap-highlight-color: transparent !important;
+    -webkit-user-drag: none !important;
+    user-drag: none !important;
+  }
+  
+  /* Prevent iOS Safari image save menu */
+  @supports (-webkit-touch-callout: none) {
+    img, video, canvas {
+      -webkit-touch-callout: none !important;
+    }
+  }
+  
+  /* Prevent Android Chrome image save */
+  img, video, canvas {
+    -webkit-user-drag: none !important;
+    -khtml-user-drag: none !important;
+    -moz-user-drag: none !important;
+    -o-user-drag: none !important;
+    user-drag: none !important;
+  }
+  
+  /* Disable long-press on mobile */
+  .article-image-container, .post-image-container {
+    -webkit-touch-callout: none !important;
+    touch-action: pan-x pan-y !important;
+  }
+  
+  /* Prevent mobile image preview */
+  img {
+    content-visibility: auto;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
+}

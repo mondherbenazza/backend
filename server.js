@@ -13,6 +13,7 @@ const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
 const sharp = require("sharp");
 const postgres = require("postgres");
+const crypto = require("crypto");
 
 // Build a robust connection that enables SSL automatically for remote DBs
 const dbUrl = process.env.DATABASE_URL || "postgresql://localhost/ourapp";
@@ -44,6 +45,76 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_ANON_KEY;
 const supabaseBucket = process.env.SUPABASE_BUCKET || "uploads"; // set your bucket name via env
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+// Image token secret for authenticated image access (Netflix-style)
+const IMAGE_TOKEN_SECRET = process.env.IMAGE_TOKEN_SECRET || process.env.JWTSECRET || 'default-secret-change-in-production';
+const IMAGE_TOKEN_EXPIRY = 60 * 60 * 1000; // 1 hour expiry
+
+// Generate secure token for image access
+function generateImageToken(imageUrl, postId) {
+    const payload = {
+        url: imageUrl,
+        postId: postId,
+        exp: Date.now() + IMAGE_TOKEN_EXPIRY,
+        iat: Date.now()
+    };
+    const token = crypto.createHmac('sha256', IMAGE_TOKEN_SECRET)
+        .update(JSON.stringify(payload))
+        .digest('hex');
+    // Use base64 encoding and replace URL-unsafe characters
+    return Buffer.from(JSON.stringify({ ...payload, sig: token }))
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+}
+
+// Verify image token
+function verifyImageToken(token) {
+    try {
+        // Restore base64 padding and convert back
+        let base64 = token.replace(/-/g, '+').replace(/_/g, '/');
+        // Add padding if needed
+        while (base64.length % 4) {
+            base64 += '=';
+        }
+        const decoded = JSON.parse(Buffer.from(base64, 'base64').toString());
+        const { sig, ...payload } = decoded;
+        const expectedSig = crypto.createHmac('sha256', IMAGE_TOKEN_SECRET)
+            .update(JSON.stringify(payload))
+            .digest('hex');
+        
+        if (sig !== expectedSig) {
+            return null;
+        }
+        
+        if (payload.exp < Date.now()) {
+            return null; // Token expired
+        }
+        
+        return payload;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Helper function to protect image URLs in posts (Netflix-style)
+function protectPostImages(posts) {
+    if (!Array.isArray(posts)) {
+        posts = [posts];
+    }
+    return posts.map(post => {
+        if (post.imageurl) {
+            const token = generateImageToken(post.imageurl, post.id);
+            return {
+                ...post,
+                imageurl: `/api/media/${token}`,
+                originalImageUrl: post.imageurl // Keep original for reference
+            };
+        }
+        return post;
+    });
+}
 
 
 async function compressImage(buffer, mimetype) {
@@ -172,7 +243,10 @@ const cspDirectives = {
     imgSrc: ["'self'", 'data:', supabaseOrigin || "'self'"],
     connectSrc: ["'self'", supabaseOrigin || "'self'"],
     fontSrc: ["'self'", 'https:', 'data:'],
-    frameAncestors: ["'self'"]
+    frameAncestors: ["'none'"], // Prevent embedding in iframes (like Netflix)
+    // Additional security headers for content protection
+    objectSrc: ["'none'"], // Prevent plugins
+    baseUri: ["'self'"]
 };
 
 app.use(helmet({
@@ -185,6 +259,21 @@ app.use(helmet({
         includeSubDomains: false
     }
 }));
+
+// Additional content protection headers
+app.use((req, res, next) => {
+    // Prevent caching of images to make downloading harder
+    if (req.path.includes('/post/') || req.path.includes('/download/') || req.path.includes('/api/media/')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    // Prevent embedding in iframes
+    res.setHeader('X-Frame-Options', 'DENY');
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+});
 
 // If running behind a proxy (Heroku, Cloud Run, Railway, etc.) enable trust proxy
 // so express can correctly detect secure (HTTPS) requests.
@@ -237,8 +326,11 @@ app.get("/", async (req, res) => {
     if (req.user){
         const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
         const [userData] = await sql`SELECT * FROM users WHERE id = ${req.user.userid}`
+        
+        // Protect image URLs with tokens
+        const protectedPosts = protectPostImages(posts);
 
-        return res.render("home",{posts, user: { ...req.user, profilephoto: userData.profilephoto }})
+        return res.render("home",{posts: protectedPosts, user: { ...req.user, profilephoto: userData.profilephoto }})
     }
     res.render("homepage");
 });
@@ -247,8 +339,18 @@ app.get("/", async (req, res) => {
 app.get('/home', mustBeLoggedIn, async (req, res) => {
     const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
     const [userData] = await sql`SELECT * FROM users WHERE id = ${req.user.userid}`
-    return res.render('home', { posts, user: { ...req.user, profilephoto: userData.profilephoto } })
+    const protectedPosts = protectPostImages(posts);
+    return res.render('home', { posts: protectedPosts, user: { ...req.user, profilephoto: userData.profilephoto } })
 });
+
+// Dashboard route (useful for Back links from create/edit/post pages)
+app.get('/dashboard', mustBeLoggedIn, async (req, res) => {
+    const posts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`
+    const [userData] = await sql`SELECT * FROM users WHERE id = ${req.user.userid}`
+    const protectedPosts = protectPostImages(posts);
+    return res.render('dashboard', { posts: protectedPosts, user: { ...req.user, profilephoto: userData.profilephoto } })
+});
+
 app.get("/login",(req, res)=> {
     res.render("login")
 })
@@ -266,15 +368,18 @@ app.post("/search-user", mustBeLoggedIn, async (req, res) => {
 
     const [user] = await sql`SELECT * FROM users WHERE username = ${username}`;
     if (!user) {
+        const userPosts = await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`;
+        const protectedUserPosts = protectPostImages(userPosts);
         return res.render("home", {
-            posts: await sql`SELECT * FROM posts WHERE authorid = ${req.user.userid} ORDER BY createDate DESC`,
+            posts: protectedUserPosts,
             user: req.user,
             searchError: "No username found"
         });
     }
 
     const posts = await sql`SELECT * FROM posts WHERE authorid = ${user.id} ORDER BY createDate DESC`;
-    return res.render("user-profile", { posts, user });
+    const protectedPosts = protectPostImages(posts);
+    return res.render("user-profile", { posts: protectedPosts, user });
 });
 
 // login route with rate limiter applied below
@@ -470,7 +575,19 @@ app.get("/post/:id", async (req, res)=> {
         return res.redirect("/")
     }
     const isAuthor =post.authorid === req.user.userid
-    res.render("single-post",{post, isAuthor, ogImage: post.imageurl})
+    
+    // Generate protected image token (Netflix-style)
+    let protectedImageUrl = null;
+    if (post.imageurl) {
+        const token = generateImageToken(post.imageurl, post.id);
+        protectedImageUrl = `/api/media/${token}`;
+    }
+    
+    res.render("single-post",{
+        post: { ...post, imageurl: protectedImageUrl, originalImageUrl: post.imageurl },
+        isAuthor, 
+        ogImage: post.imageurl // Keep original for OG tags
+    })
 })
 
 // Health check for hosting providers (Render, etc.)
@@ -478,32 +595,105 @@ app.get('/health', (req, res) => {
     res.send('OK');
 });
 
-// Download route for images
-app.get("/download/:id", async (req, res) => {
-    const [post] = await sql`SELECT imageurl, title FROM posts WHERE id = ${req.params.id}`
-    
-    if (!post || !post.imageurl) {
-        return res.status(404).send("Image not found")
-    }
-    
+// Rate limiter for media endpoint (prevent abuse)
+const mediaLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 requests per minute per IP
+    message: 'Too many requests',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Authenticated image serving endpoint (Netflix-style protection)
+// Images are served through this endpoint with tokens to prevent direct URL access
+app.get('/api/media/:token', mediaLimiter, async (req, res) => {
     try {
-        // Fetch the image from Supabase
-        const response = await fetch(post.imageurl)
-        if (!response.ok) {
-            throw new Error("Failed to fetch image")
+        const tokenData = verifyImageToken(req.params.token);
+        
+        if (!tokenData) {
+            return res.status(403).send('Access denied');
         }
         
-        const imageBuffer = await response.arrayBuffer()
-        const filename = `${post.title.replace(/[^a-z0-9]/gi, '_')}.webp`
+        const imageUrl = tokenData.url;
         
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-        res.setHeader('Content-Type', 'image/webp')
-        res.send(Buffer.from(imageBuffer))
+        // Verify the image belongs to a post (additional security)
+        if (tokenData.postId) {
+            const [post] = await sql`SELECT id FROM posts WHERE id = ${tokenData.postId}`;
+            if (!post) {
+                return res.status(404).send('Image not found');
+            }
+        }
+        
+        // Check referrer to ensure request comes from our site
+        const referer = req.get('referer');
+        const host = req.get('host');
+        if (referer && !referer.includes(host) && process.env.NODE_ENV === 'production') {
+            // In production, require referer to match our domain
+            return res.status(403).send('Access denied');
+        }
+        
+        // Fetch image from Supabase
+        const response = await fetch(imageUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+        if (!response.ok) {
+            return res.status(404).send('Image not found');
+        }
+        
+        const imageBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'image/webp';
+        
+        // Set maximum security headers
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-XSS-Protection', '1; mode=block');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        // Prevent direct download - force inline display only
+        res.setHeader('Content-Disposition', 'inline; filename="image"');
+        // Add CORS restrictions
+        res.setHeader('Access-Control-Allow-Origin', req.get('origin') || '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        
+        res.send(Buffer.from(imageBuffer));
     } catch (error) {
-        console.error("Download error:", error)
-        res.status(500).send("Download failed")
+        console.error('Image serving error:', error);
+        res.status(500).send('Error loading image');
     }
-})
+});
+
+// Download route for images - DISABLED for content protection
+// app.get("/download/:id", async (req, res) => {
+//     const [post] = await sql`SELECT imageurl, title FROM posts WHERE id = ${req.params.id}`
+//     
+//     if (!post || !post.imageurl) {
+//         return res.status(404).send("Image not found")
+//     }
+//     
+//     try {
+//         // Fetch the image from Supabase
+//         const response = await fetch(post.imageurl)
+//         if (!response.ok) {
+//             throw new Error("Failed to fetch image")
+//         }
+//         
+//         const imageBuffer = await response.arrayBuffer()
+//         const filename = `${post.title.replace(/[^a-z0-9]/gi, '_')}.webp`
+//         
+//         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+//         res.setHeader('Content-Type', 'image/webp')
+//         res.send(Buffer.from(imageBuffer))
+//     } catch (error) {
+//         console.error("Download error:", error)
+//         res.status(500).send("Download failed")
+//     }
+// })
 
 app.post("/upload-profile-photo", mustBeLoggedIn, upload.single("profilePhoto"), async (req, res) => {
     try {

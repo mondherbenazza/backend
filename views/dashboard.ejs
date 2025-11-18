@@ -37,7 +37,7 @@
                 </svg><span>CREATE POST NOW !</span>
             </a>
         </div>
-        <h2 class="page-title">Hello <%= user.username %>, Publish you posts here</h2>
+        <h2 class="page-title">Hi <%= user.username %>, Publish you posts here</h2>
         
         <% } else { %>
             <a style="margin-bottom: 15px;" class="btn btn-primary" href="/create-post">
@@ -50,8 +50,8 @@
         <br/>
         <div class="posts-grid">
             <% posts.forEach(post =>{ %>
-                    <% if (post.imageurl) { %>
                     <a class="post-card" href="/post/<%= post.id %>">
+                    <% if (post.imageurl) { %>
                     <div class="post-image-container">
                         <img class="post-image" src="<%= post.imageurl %>" alt="thumb"  />
                         <div class="post-image-overlay"></div>
@@ -66,7 +66,6 @@
                             <%= new Date(post.createdate).getMonth()+1 %>-<%= new Date(post.createdate).getDate() %>-<%= new Date(post.createdate).getFullYear()%>
                         </p>
                     </div>
-                    </p>
                     </a>
             <% }) %>
         </div>
