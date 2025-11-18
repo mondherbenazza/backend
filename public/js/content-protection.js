@@ -881,79 +881,74 @@
     if (isMobile) {
         let mobileScreenshotAttempts = 0;
         let lastMobileVisibilityChange = Date.now();
-        let mobileBlackScreenTimer = null;
         
-        // iOS: Enhanced screenshot and recording detection
+        // iOS: Enhanced screenshot and recording detection (SILENT - no black screen, no notifications)
         if (isIOS) {
-            // Method 1: Detect app backgrounding (screenshot indicator)
+            // Method 1: Detect app backgrounding (screenshot indicator) - Silent blocking
             window.addEventListener('pagehide', function() {
-                activateBlackScreen();
-                showScreenshotWarning();
+                // Silent - just hide content temporarily, no black screen, no notification
+                const allContent = document.querySelectorAll('img, video, canvas');
+                allContent.forEach(function(el) {
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
+                });
             });
             
             window.addEventListener('pageshow', function(e) {
                 const timeHidden = Date.now() - lastMobileVisibilityChange;
-                // If page was hidden briefly, likely screenshot
+                // If page was hidden briefly, likely screenshot - restore content silently
                 if (timeHidden > 0 && timeHidden < 800) {
                     mobileScreenshotAttempts++;
-                    showScreenshotWarning();
-                    activateBlackScreen();
-                    // Keep black screen longer for screenshots
-                    if (mobileBlackScreenTimer) clearTimeout(mobileBlackScreenTimer);
-                    mobileBlackScreenTimer = setTimeout(function() {
-                        deactivateBlackScreen();
-                    }, 3000);
-                } else {
+                    // Silent blocking - no notification, no black screen
+                    // Content was already hidden, just restore it
                     setTimeout(function() {
-                        deactivateBlackScreen();
-                    }, 500);
+                        const allContent = document.querySelectorAll('img, video, canvas');
+                        allContent.forEach(function(el) {
+                            el.style.opacity = '1';
+                            el.style.visibility = 'visible';
+                        });
+                    }, 100);
+                } else {
+                    // Normal return - restore content
+                    const allContent = document.querySelectorAll('img, video, canvas');
+                    allContent.forEach(function(el) {
+                        el.style.opacity = '1';
+                        el.style.visibility = 'visible';
+                    });
                 }
             });
             
-            // Method 2: Detect visibility changes (screenshot/recording indicator)
+            // Method 2: Detect visibility changes (screenshot/recording indicator) - Silent
             document.addEventListener('visibilitychange', function() {
                 lastMobileVisibilityChange = Date.now();
                 if (document.hidden) {
-                    // Immediately go black
-                    activateBlackScreen();
-                    // Hide all content
-                    const allContent = document.querySelectorAll('*');
+                    // Silently hide content when page becomes hidden
+                    const allContent = document.querySelectorAll('img, video, canvas');
                     allContent.forEach(function(el) {
-                        if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                            el.style.opacity = '0';
-                            el.style.visibility = 'hidden';
-                        }
+                        el.style.opacity = '0';
+                        el.style.visibility = 'hidden';
                     });
                 } else {
                     // Page visible again - might be after screenshot
                     const timeHidden = Date.now() - lastMobileVisibilityChange;
                     if (timeHidden > 0 && timeHidden < 1000) {
                         mobileScreenshotAttempts++;
-                        showScreenshotWarning();
-                        activateBlackScreen();
-                        if (mobileBlackScreenTimer) clearTimeout(mobileBlackScreenTimer);
-                        mobileBlackScreenTimer = setTimeout(function() {
-                            deactivateBlackScreen();
-                            // Restore content
-                            const allContent = document.querySelectorAll('*');
-                            allContent.forEach(function(el) {
-                                if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                                    el.style.opacity = '1';
-                                    el.style.visibility = 'visible';
-                                }
-                            });
-                        }, 3000);
-                    } else {
+                        // Silent - no notification, no black screen
+                        // Content was already hidden, restore it after brief delay
                         setTimeout(function() {
-                            deactivateBlackScreen();
-                            const allContent = document.querySelectorAll('*');
+                            const allContent = document.querySelectorAll('img, video, canvas');
                             allContent.forEach(function(el) {
-                                if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                                    el.style.opacity = '1';
-                                    el.style.visibility = 'visible';
-                                }
+                                el.style.opacity = '1';
+                                el.style.visibility = 'visible';
                             });
-                        }, 300);
+                        }, 100);
+                    } else {
+                        // Normal return - restore content
+                        const allContent = document.querySelectorAll('img, video, canvas');
+                        allContent.forEach(function(el) {
+                            el.style.opacity = '1';
+                            el.style.visibility = 'visible';
+                        });
                     }
                 }
             });
@@ -970,14 +965,13 @@
                 // This is detected via rapid visibility changes
             }, true);
             
-            // Method 5: Block iOS screen recording via getUserMedia
+            // Method 5: Block iOS screen recording via getUserMedia - Silent
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
                 navigator.mediaDevices.getUserMedia = function(constraints) {
-                    // Block screen recording attempts
+                    // Block screen recording attempts - Silent
                     if (constraints && (constraints.video || constraints.screen || constraints.display)) {
-                        showScreenshotWarning();
-                        activateBlackScreen();
+                        // Silent blocking - no notification, no black screen
                         return Promise.reject(new Error('Screen recording is not allowed'));
                     }
                     return originalGetUserMedia.apply(this, arguments);
@@ -985,60 +979,52 @@
             }
         }
         
-        // Android: Enhanced screenshot and recording detection
+        // Android: Enhanced screenshot and recording detection (SILENT - no black screen, no notifications)
         if (isAndroid) {
-            // Method 1: Detect app switching (screenshot indicator)
+            // Method 1: Detect app switching (screenshot indicator) - Silent
             window.addEventListener('blur', function() {
                 lastBlurTime = Date.now();
-                activateBlackScreen();
-                // Hide all content immediately
-                const allContent = document.querySelectorAll('*');
+                // Silently hide content, no black screen, no notification
+                const allContent = document.querySelectorAll('img, video, canvas');
                 allContent.forEach(function(el) {
-                    if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                        el.style.opacity = '0';
-                        el.style.visibility = 'hidden';
-                    }
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
                 });
             });
             
             window.addEventListener('focus', function() {
                 const timeSinceBlur = Date.now() - lastBlurTime;
                 if (timeSinceBlur > 0 && timeSinceBlur < 1000) {
-                    // Screenshot detected
+                    // Screenshot detected - silent blocking
                     mobileScreenshotAttempts++;
-                    showScreenshotWarning();
-                    activateBlackScreen();
-                    if (mobileBlackScreenTimer) clearTimeout(mobileBlackScreenTimer);
-                    mobileBlackScreenTimer = setTimeout(function() {
-                        deactivateBlackScreen();
-                        // Restore content
-                        const allContent = document.querySelectorAll('*');
-                        allContent.forEach(function(el) {
-                            if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                                el.style.opacity = '1';
-                                el.style.visibility = 'visible';
-                            }
-                        });
-                    }, 3000);
-                } else {
+                    // No notification, no black screen - just restore content
                     setTimeout(function() {
-                        deactivateBlackScreen();
-                        const allContent = document.querySelectorAll('*');
+                        const allContent = document.querySelectorAll('img, video, canvas');
                         allContent.forEach(function(el) {
-                            if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                                el.style.opacity = '1';
-                                el.style.visibility = 'visible';
-                            }
+                            el.style.opacity = '1';
+                            el.style.visibility = 'visible';
                         });
-                    }, 300);
+                    }, 100);
+                } else {
+                    // Normal return - restore content
+                    const allContent = document.querySelectorAll('img, video, canvas');
+                    allContent.forEach(function(el) {
+                        el.style.opacity = '1';
+                        el.style.visibility = 'visible';
+                    });
                 }
             });
             
-            // Method 2: Detect Android screenshot gestures (volume down + power)
-            // This is detected via rapid blur/focus events
+            // Method 2: Detect Android screenshot gestures (volume down + power) - Silent
             let androidScreenshotDetected = false;
             window.addEventListener('blur', function() {
                 androidScreenshotDetected = true;
+                // Silently hide content
+                const allContent = document.querySelectorAll('img, video, canvas');
+                allContent.forEach(function(el) {
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
+                });
                 setTimeout(function() {
                     androidScreenshotDetected = false;
                 }, 500);
@@ -1046,22 +1032,25 @@
             
             window.addEventListener('focus', function() {
                 if (androidScreenshotDetected) {
-                    showScreenshotWarning();
-                    activateBlackScreen();
+                    // Silent - no notification, no black screen
+                    // Just restore content
                     setTimeout(function() {
-                        deactivateBlackScreen();
-                    }, 3000);
+                        const allContent = document.querySelectorAll('img, video, canvas');
+                        allContent.forEach(function(el) {
+                            el.style.opacity = '1';
+                            el.style.visibility = 'visible';
+                        });
+                    }, 100);
                 }
             });
             
-            // Method 3: Block Android screen recording via MediaProjection API
+            // Method 3: Block Android screen recording via MediaProjection API - Silent
             // Block getUserMedia for screen recording
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
                 navigator.mediaDevices.getUserMedia = function(constraints) {
                     if (constraints && (constraints.video || constraints.screen || constraints.display)) {
-                        showScreenshotWarning();
-                        activateBlackScreen();
+                        // Silent blocking - no notification, no black screen
                         return Promise.reject(new Error('Screen recording is not allowed'));
                     }
                     return originalGetUserMedia.apply(this, arguments);
@@ -1074,41 +1063,45 @@
             }
         }
         
-        // Universal mobile: Continuous aggressive monitoring
+        // Universal mobile: Continuous aggressive monitoring (SILENT)
         // Check every 50ms (very aggressive for mobile)
         setInterval(function() {
             if (document.hidden) {
-                if (!blackScreenActive) {
-                    activateBlackScreen();
-                }
-                // Keep all content hidden while page is hidden
-                const allContent = document.querySelectorAll('img, video, canvas, p, h1, h2, h3, h4, h5, h6, div, span, a');
+                // Silently hide content while page is hidden - no black screen, no notification
+                const allContent = document.querySelectorAll('img, video, canvas');
                 allContent.forEach(function(el) {
-                    if (el.id !== 'screenshot-warning' && el.id !== 'black-screen-overlay') {
-                        el.style.opacity = '0';
-                        el.style.visibility = 'hidden';
-                        el.style.display = 'none';
-                    }
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
+                });
+            } else {
+                // Restore content when page is visible
+                const allContent = document.querySelectorAll('img, video, canvas');
+                allContent.forEach(function(el) {
+                    el.style.opacity = '1';
+                    el.style.visibility = 'visible';
                 });
             }
         }, 50);
         
-        // Monitor for rapid visibility changes (screenshot indicator)
+        // Monitor for rapid visibility changes (screenshot indicator) - Silent
         let visibilityChangeCount = 0;
         let lastVisibilityCheck = Date.now();
         document.addEventListener('visibilitychange', function() {
             visibilityChangeCount++;
             const timeSinceLastCheck = Date.now() - lastVisibilityCheck;
             
-            // If multiple rapid visibility changes, likely screenshot attempt
+            // If multiple rapid visibility changes, likely screenshot attempt - Silent blocking
             if (timeSinceLastCheck < 500 && visibilityChangeCount > 2) {
                 mobileScreenshotAttempts++;
-                showScreenshotWarning();
-                activateBlackScreen();
-                if (mobileBlackScreenTimer) clearTimeout(mobileBlackScreenTimer);
-                mobileBlackScreenTimer = setTimeout(function() {
-                    deactivateBlackScreen();
-                }, 5000);
+                // Silent - no notification, no black screen
+                // Content is already hidden, just keep it hidden briefly
+                setTimeout(function() {
+                    const allContent = document.querySelectorAll('img, video, canvas');
+                    allContent.forEach(function(el) {
+                        el.style.opacity = '1';
+                        el.style.visibility = 'visible';
+                    });
+                }, 200);
             }
             
             lastVisibilityCheck = Date.now();
@@ -1119,7 +1112,7 @@
             }, 1000);
         });
         
-        // Block all mobile screen recording APIs
+        // Block all mobile screen recording APIs (SILENT - no notifications)
         // Block MediaRecorder API
         if (window.MediaRecorder) {
             const OriginalMediaRecorder = window.MediaRecorder;
@@ -1129,8 +1122,7 @@
                     const videoTracks = stream.getVideoTracks();
                     videoTracks.forEach(function(track) {
                         if (track.label && (track.label.includes('screen') || track.label.includes('display'))) {
-                            showScreenshotWarning();
-                            activateBlackScreen();
+                            // Silent blocking - no notification, no black screen
                             throw new Error('Screen recording is not allowed');
                         }
                     });
@@ -1140,28 +1132,18 @@
             window.MediaRecorder.prototype = OriginalMediaRecorder.prototype;
         }
         
-        // Block canvas.toBlob for mobile (can be used to capture screenshots)
+        // Block canvas.toBlob for mobile (can be used to capture screenshots) - Silent
         const originalToBlob = HTMLCanvasElement.prototype.toBlob;
         HTMLCanvasElement.prototype.toBlob = function(callback, type, quality) {
-            if (typeof showScreenshotWarning === 'function') {
-                showScreenshotWarning();
-            }
-            if (typeof activateBlackScreen === 'function') {
-                activateBlackScreen();
-            }
+            // Silent blocking - no notification, no black screen
             return null;
         };
         
-        // Block canvas.toDataURL for mobile
+        // Block canvas.toDataURL for mobile - Silent
         const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
         Object.defineProperty(HTMLCanvasElement.prototype, 'toDataURL', {
             value: function() {
-                if (typeof showScreenshotWarning === 'function') {
-                    showScreenshotWarning();
-                }
-                if (typeof activateBlackScreen === 'function') {
-                    activateBlackScreen();
-                }
+                // Silent blocking - no notification, no black screen
                 return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
             },
             writable: false,
@@ -1176,25 +1158,38 @@
             }
         }
         
-        // Block mobile camera access that might be used for recording
+        // Block mobile camera access that might be used for recording - Silent
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
             navigator.mediaDevices.getUserMedia = function(constraints) {
-                // Block if trying to access screen/display
+                // Block if trying to access screen/display - Silent
                 if (constraints && (constraints.screen || constraints.display || 
                     (constraints.video && typeof constraints.video === 'object' && 
                      (constraints.video.mediaSource === 'screen' || constraints.video.mediaSource === 'display')))) {
-                    showScreenshotWarning();
-                    activateBlackScreen();
+                    // Silent blocking - no notification, no black screen
                     return Promise.reject(new Error('Screen recording is not allowed'));
                 }
                 return originalGetUserMedia.apply(this, arguments);
             };
         }
         
-        // Additional mobile-specific: Keep page black when in background
+        // Additional mobile-specific: Silently hide content when in background
         window.addEventListener('blur', function() {
-            activateBlackScreen();
+            // Silent - just hide content, no black screen
+            const allContent = document.querySelectorAll('img, video, canvas');
+            allContent.forEach(function(el) {
+                el.style.opacity = '0';
+                el.style.visibility = 'hidden';
+            });
+        });
+        
+        window.addEventListener('focus', function() {
+            // Restore content when focused
+            const allContent = document.querySelectorAll('img, video, canvas');
+            allContent.forEach(function(el) {
+                el.style.opacity = '1';
+                el.style.visibility = 'visible';
+            });
         });
         
         // Prevent mobile screenshot via browser's screenshot feature
