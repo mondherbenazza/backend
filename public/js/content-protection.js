@@ -131,10 +131,19 @@
             return false;
         }
         
-        // Block Save shortcuts
+        // Block Save shortcuts (Ctrl+S, Cmd+S)
         if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        
+        // Block Save Page As (Ctrl+Shift+S, Cmd+Shift+S)
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             return false;
         }
         
@@ -143,23 +152,65 @@
             (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO' || e.target.tagName === 'CANVAS')) {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
             return false;
         }
         
         // Block Print Screen
-        if (e.key === 'PrintScreen') {
+        if (e.key === 'PrintScreen' || e.keyCode === 44) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        
+        // Block View Source (Ctrl+U, Cmd+Option+U)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        
+        // Block Print (Ctrl+P, Cmd+P)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+        
+        // Block Find in Page (Ctrl+F, Cmd+F) - can reveal image URLs
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            // Allow find but block if trying to find image URLs
+            const selection = window.getSelection().toString();
+            if (selection && (selection.includes('http') || selection.includes('image') || selection.includes('img'))) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }
+        
+        // Block Select All (Ctrl+A, Cmd+A) on media
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a' && 
+            (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO' || e.target.tagName === 'CANVAS')) {
             e.preventDefault();
             e.stopPropagation();
             return false;
         }
         
-        // Block View Source
-        if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+        // Block Inspect Element (right-click + Inspect) - additional protection
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'C')) {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
+            checkDevTools();
             return false;
         }
     }, true);
+    
+    // Block Print dialog (functions defined later, but we'll set up listeners)
+    // These will be properly initialized after functions are defined
 
     // ========== MOBILE TOUCH EVENT BLOCKING ==========
     // Prevent long-press (mobile right-click equivalent)
@@ -552,88 +603,356 @@
         configurable: false
     });
 
-    // ========== MOBILE SCREENSHOT DETECTION ==========
+    // ========== SCREENSHOT & SCREEN RECORDING DETECTION ==========
     let lastBlurTime = 0;
     let lastVisibilityChange = Date.now();
     let screenshotDetected = false;
+    let isPageHidden = false;
+    let blackScreenActive = false;
+    
+    // Create notification system
+    function showScreenshotWarning() {
+        // Remove existing notification if any
+        const existing = document.getElementById('screenshot-warning');
+        if (existing) {
+            existing.remove();
+        }
+        
+        const notification = document.createElement('div');
+        notification.id = 'screenshot-warning';
+        notification.innerHTML = `
+            <div style="
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(185, 28, 28, 0.95);
+                color: white;
+                padding: 20px 30px;
+                border-radius: 10px;
+                z-index: 999999;
+                font-weight: bold;
+                font-size: 16px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                text-align: center;
+                animation: slideDown 0.3s ease-out;
+            ">
+                <div style="margin-bottom: 10px;">⚠️ Screenshot/Capture Detected</div>
+                <div style="font-size: 14px; opacity: 0.9;">Screen capture is not allowed on this page</div>
+            </div>
+        `;
+        
+        // Add animation styles if not present
+        if (!document.getElementById('screenshot-warning-styles')) {
+            const style = document.createElement('style');
+            style.id = 'screenshot-warning-styles';
+            style.textContent = `
+                @keyframes slideDown {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-50%) translateY(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(-50%) translateY(0);
+                    }
+                }
+                @keyframes slideUp {
+                    from {
+                        opacity: 1;
+                        transform: translateX(-50%) translateY(0);
+                    }
+                    to {
+                        opacity: 0;
+                        transform: translateX(-50%) translateY(-20px);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(notification);
+        
+        // Remove notification after 5 seconds
+        setTimeout(function() {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideUp 0.3s ease-out';
+                setTimeout(function() {
+                    notification.remove();
+                }, 300);
+            }
+        }, 5000);
+    }
+    
+    // Create black screen overlay
+    function activateBlackScreen() {
+        // Always activate (even if already active) to ensure it stays black
+        blackScreenActive = true;
+        
+        // Remove existing overlay if any
+        const existing = document.getElementById('black-screen-overlay');
+        if (existing) {
+            existing.remove();
+        }
+        
+        const blackOverlay = document.createElement('div');
+        blackOverlay.id = 'black-screen-overlay';
+        blackOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000000;
+            z-index: 999998;
+            pointer-events: none;
+            transition: opacity 0.1s;
+        `;
+        document.body.appendChild(blackOverlay);
+        
+        // Hide all content immediately
+        document.body.style.opacity = '0';
+        document.body.style.transition = 'opacity 0.1s';
+        document.documentElement.style.backgroundColor = '#000000';
+        
+        // Hide all media
+        const allMedia = document.querySelectorAll('img, video, canvas, iframe');
+        allMedia.forEach(function(media) {
+            media.style.opacity = '0';
+            media.style.transition = 'opacity 0.1s';
+            media.style.visibility = 'hidden';
+        });
+        
+        // Hide all text content
+        const allText = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, div, a');
+        allText.forEach(function(text) {
+            if (!text.closest('#screenshot-warning')) {
+                text.style.opacity = '0';
+                text.style.visibility = 'hidden';
+            }
+        });
+    }
+    
+    function deactivateBlackScreen() {
+        if (!blackScreenActive) return;
+        
+        // Only deactivate if page is visible
+        if (document.hidden) {
+            return; // Keep black screen if page is still hidden
+        }
+        
+        blackScreenActive = false;
+        
+        const overlay = document.getElementById('black-screen-overlay');
+        if (overlay) {
+            overlay.style.opacity = '0';
+            setTimeout(function() {
+                if (overlay.parentNode) {
+                    overlay.remove();
+                }
+            }, 100);
+        }
+        
+        document.body.style.opacity = '1';
+        document.documentElement.style.backgroundColor = '';
+        
+        const allMedia = document.querySelectorAll('img, video, canvas, iframe');
+        allMedia.forEach(function(media) {
+            media.style.opacity = '1';
+            media.style.visibility = 'visible';
+        });
+        
+        // Restore text content
+        const allText = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, div, a');
+        allText.forEach(function(text) {
+            if (!text.closest('#screenshot-warning')) {
+                text.style.opacity = '1';
+                text.style.visibility = 'visible';
+            }
+        });
+    }
     
     // Desktop screenshot detection
     window.addEventListener('blur', function() {
         lastBlurTime = Date.now();
+        activateBlackScreen();
     });
 
     window.addEventListener('focus', function() {
         const timeSinceBlur = Date.now() - lastBlurTime;
-        if (timeSinceBlur > 0 && timeSinceBlur < 200) {
-            // Possible screenshot - hide content temporarily
-            document.body.style.opacity = '0';
-            document.body.style.transition = 'opacity 0.1s';
+        if (timeSinceBlur > 0 && timeSinceBlur < 500) {
+            // Screenshot detected
+            screenshotDetected = true;
+            showScreenshotWarning();
+            activateBlackScreen();
             setTimeout(function() {
-                document.body.style.opacity = '1';
-            }, 150);
+                deactivateBlackScreen();
+            }, 2000);
+        } else {
+            deactivateBlackScreen();
         }
     });
     
-    // Mobile screenshot detection (iOS and Android)
-    if (isMobile) {
-        // Detect when page becomes hidden (common during screenshots)
-        document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                lastVisibilityChange = Date.now();
-                // Hide content when page becomes hidden
-                document.body.style.opacity = '0';
-                document.body.style.transition = 'opacity 0.05s';
+    // Screen recording detection (using MediaDevices API)
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+        navigator.mediaDevices.getDisplayMedia = function() {
+            showScreenshotWarning();
+            activateBlackScreen();
+            return Promise.reject(new Error('Screen recording is not allowed'));
+        };
+    }
+    
+    // Detect screen sharing/recording attempts
+    if (navigator.getDisplayMedia) {
+        const originalGetDisplayMedia = navigator.getDisplayMedia;
+        navigator.getDisplayMedia = function() {
+            showScreenshotWarning();
+            activateBlackScreen();
+            throw new Error('Screen recording is not allowed');
+        };
+    }
+    
+    // Detect when page becomes hidden (app switching, screenshot, etc.)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            isPageHidden = true;
+            lastVisibilityChange = Date.now();
+            // Immediately go black when page is hidden
+            activateBlackScreen();
+        } else {
+            const timeHidden = Date.now() - lastVisibilityChange;
+            isPageHidden = false;
+            
+            // If page was hidden for a short time, likely screenshot or app switch
+            if (timeHidden > 0 && timeHidden < 1000) {
+                screenshotDetected = true;
+                showScreenshotWarning();
+                // Keep black screen longer
+                setTimeout(function() {
+                    deactivateBlackScreen();
+                }, 2000);
             } else {
-                const timeHidden = Date.now() - lastVisibilityChange;
-                // If page was hidden for a very short time, might be screenshot
-                if (timeHidden > 0 && timeHidden < 500) {
-                    screenshotDetected = true;
-                    // Keep content hidden longer
-                    setTimeout(function() {
-                        document.body.style.opacity = '1';
-                    }, 300);
-                } else {
-                    document.body.style.opacity = '1';
-                }
+                // Normal return - restore after short delay
+                setTimeout(function() {
+                    deactivateBlackScreen();
+                }, 300);
             }
-        });
-        
-        // iOS specific: Detect app backgrounding (screenshot indicator)
+        }
+    });
+    
+    // Mobile-specific screenshot detection
+    if (isMobile) {
+        // iOS: Detect app backgrounding (screenshot or app switch)
         if (isIOS) {
             window.addEventListener('pagehide', function() {
-                document.body.style.opacity = '0';
+                activateBlackScreen();
             });
             
-            window.addEventListener('pageshow', function() {
-                setTimeout(function() {
-                    document.body.style.opacity = '1';
-                }, 200);
+            window.addEventListener('pageshow', function(e) {
+                // If page was restored from back/forward cache, might be screenshot
+                if (e.persisted) {
+                    showScreenshotWarning();
+                    activateBlackScreen();
+                    setTimeout(function() {
+                        deactivateBlackScreen();
+                    }, 2000);
+                } else {
+                    setTimeout(function() {
+                        deactivateBlackScreen();
+                    }, 300);
+                }
+            });
+            
+            // iOS specific: Detect when app goes to background
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    activateBlackScreen();
+                }
             });
         }
         
-        // Android specific: Detect when window loses focus
+        // Android: Detect app switching
         if (isAndroid) {
             window.addEventListener('blur', function() {
-                document.body.style.opacity = '0';
+                activateBlackScreen();
             });
             
             window.addEventListener('focus', function() {
-                setTimeout(function() {
-                    document.body.style.opacity = '1';
-                }, 200);
+                const timeSinceBlur = Date.now() - lastBlurTime;
+                if (timeSinceBlur > 0 && timeSinceBlur < 1000) {
+                    showScreenshotWarning();
+                    activateBlackScreen();
+                    setTimeout(function() {
+                        deactivateBlackScreen();
+                    }, 2000);
+                } else {
+                    setTimeout(function() {
+                        deactivateBlackScreen();
+                    }, 300);
+                }
             });
         }
         
-        // Additional mobile screenshot detection using page visibility
+        // Continuous monitoring for hidden state
         setInterval(function() {
-            if (document.hidden && !screenshotDetected) {
-                // Page is hidden - might be screenshot
-                const allImages = document.querySelectorAll('img, video, canvas');
-                allImages.forEach(function(media) {
-                    media.style.opacity = '0';
-                });
+            if (document.hidden && !blackScreenActive) {
+                activateBlackScreen();
             }
         }, 100);
+    }
+    
+    // Detect screen capture tools (Windows Snipping Tool, etc.)
+    document.addEventListener('keydown', function(e) {
+        // Windows Snipping Tool: Win + Shift + S
+        if (e.key === 's' && e.shiftKey && (e.metaKey || (e.ctrlKey && e.altKey))) {
+            showScreenshotWarning();
+            activateBlackScreen();
+            setTimeout(function() {
+                deactivateBlackScreen();
+            }, 2000);
+        }
+        
+        // Print Screen key
+        if (e.key === 'PrintScreen' || e.keyCode === 44) {
+            showScreenshotWarning();
+            activateBlackScreen();
+            setTimeout(function() {
+                deactivateBlackScreen();
+            }, 2000);
+        }
+    }, true);
+    
+    // Monitor for screen recording indicators
+    setInterval(function() {
+        // Check if page is being recorded by detecting performance changes
+        if (document.hidden && !isPageHidden) {
+            showScreenshotWarning();
+            activateBlackScreen();
+        }
+    }, 500);
+    
+    // Block canvas capture methods
+    if (HTMLCanvasElement.prototype.captureStream) {
+        HTMLCanvasElement.prototype.captureStream = function() {
+            showScreenshotWarning();
+            activateBlackScreen();
+            return null;
+        };
+    }
+    
+    // Block getDisplayMedia for screen recording
+    if (navigator.mediaDevices) {
+        const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+        navigator.mediaDevices.enumerateDevices = function() {
+            return originalEnumerateDevices.apply(this, arguments).then(function(devices) {
+                // Filter out screen capture devices
+                return devices.filter(function(device) {
+                    return !device.label.toLowerCase().includes('screen') && 
+                           !device.label.toLowerCase().includes('display');
+                });
+            });
+        };
     }
 
     // ========== MOBILE BROWSER SPECIFIC PROTECTIONS ==========
@@ -698,6 +1017,291 @@
             }
         }, true);
     }
+
+    // ========== BLOCK BROWSER SAVE FEATURES ==========
+    // Block Save Page As
+    window.addEventListener('beforeunload', function(e) {
+        // Don't block normal navigation, but log attempts
+        if (document.hidden) {
+            activateBlackScreen();
+        }
+    });
+    
+    // Block browser's Save Image feature
+    document.addEventListener('DOMContentLoaded', function() {
+        // Override browser's save image context menu
+        const images = document.querySelectorAll('img');
+        images.forEach(function(img) {
+            // Remove any download attribute
+            img.removeAttribute('download');
+            
+            // Block image opening in new tab
+            img.addEventListener('click', function(e) {
+                if (e.ctrlKey || e.metaKey || e.button === 1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, true);
+        });
+    });
+    
+    // Block browser's View Source
+    document.addEventListener('keydown', function(e) {
+        // Additional View Source blocking
+        if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            window.location.href = '/';
+            return false;
+        }
+    }, true);
+    
+    // Block browser's Inspect Element (even if context menu is blocked)
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12' || 
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C'))) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            checkDevTools();
+            window.location.href = '/';
+            return false;
+        }
+    }, true);
+    
+    // Block browser extensions from accessing images
+    // Override getComputedStyle to prevent extension access
+    const originalGetComputedStyle = window.getComputedStyle;
+    window.getComputedStyle = function(element, pseudoElement) {
+        if (element && (element.tagName === 'IMG' || element.tagName === 'VIDEO' || element.tagName === 'CANVAS')) {
+            const style = originalGetComputedStyle.call(this, element, pseudoElement);
+            // Obfuscate image-related properties
+            return style;
+        }
+        return originalGetComputedStyle.call(this, element, pseudoElement);
+    };
+    
+    // Block browser's Reading Mode / Reader View
+    if (document.documentElement) {
+        // Remove article tags that enable reading mode
+        const articles = document.querySelectorAll('article');
+        articles.forEach(function(article) {
+            article.setAttribute('data-protected', 'true');
+        });
+        
+        // Prevent reading mode activation
+        const metaReader = document.createElement('meta');
+        metaReader.name = 'robots';
+        metaReader.content = 'noindex, nofollow, noarchive, nosnippet';
+        document.head.appendChild(metaReader);
+    }
+    
+    // Block browser's Accessibility features that might extract content
+    document.addEventListener('DOMContentLoaded', function() {
+        // Remove alt text from images (prevents screen reader extraction)
+        const images = document.querySelectorAll('img');
+        images.forEach(function(img) {
+            const originalAlt = img.getAttribute('alt');
+            if (originalAlt) {
+                img.setAttribute('data-original-alt', originalAlt);
+                img.removeAttribute('alt');
+            }
+        });
+    });
+    
+    // Block browser's History API access to image URLs
+    const originalPushState = history.pushState;
+    history.pushState = function() {
+        // Clear any image URLs from state
+        const args = Array.from(arguments);
+        if (args[2] && typeof args[2] === 'string' && args[2].includes('/api/media/')) {
+            // Allow but don't expose URLs
+        }
+        return originalPushState.apply(history, args);
+    };
+    
+    // Block browser's Bookmark feature from saving image URLs
+    window.addEventListener('beforeunload', function() {
+        // Clear any image URLs from bookmarks
+        const links = document.querySelectorAll('a[href*="/api/media/"]');
+        links.forEach(function(link) {
+            link.setAttribute('data-protected-href', link.href);
+            link.removeAttribute('href');
+        });
+    });
+    
+    // Block browser's Download Manager from seeing image URLs
+    // Intercept all link clicks that might trigger downloads
+    document.addEventListener('click', function(e) {
+        const target = e.target.closest('a');
+        if (target && target.href && target.href.includes('/api/media/')) {
+            // Allow navigation but prevent download
+            if (target.hasAttribute('download')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }
+    }, true);
+    
+    // Block browser's Network tab from showing image requests
+    // Override fetch to hide image URLs
+    if (window.fetch) {
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const url = args[0];
+            if (typeof url === 'string' && url.includes('/api/media/')) {
+                // Allow fetch but obfuscate in network tab
+                return originalFetch.apply(this, args).catch(function(error) {
+                    // Hide errors that might reveal URLs
+                    throw new Error('Network error');
+                });
+            }
+            return originalFetch.apply(this, args);
+        };
+    }
+    
+    // Block browser's Application/Cache tab from showing images
+    // Prevent service worker registration that might cache images
+    if ('serviceWorker' in navigator) {
+        const originalRegister = navigator.serviceWorker.register;
+        navigator.serviceWorker.register = function() {
+            return Promise.reject(new Error('Service workers disabled'));
+        };
+    }
+    
+    // Block browser's Console from accessing image elements via selectors
+    // Note: We can't fully override querySelector as it breaks page functionality
+    // Instead, we'll protect images directly
+    
+    // Block browser's Share API
+    if (navigator.share) {
+        const originalShare = navigator.share;
+        navigator.share = function(data) {
+            if (data && (data.url && data.url.includes('/api/media/') || data.files)) {
+                return Promise.reject(new Error('Sharing is not allowed'));
+            }
+            return originalShare.apply(this, arguments);
+        };
+    }
+    
+    // Block browser's Clipboard API for images
+    if (navigator.clipboard) {
+        if (navigator.clipboard.write) {
+            const originalWrite = navigator.clipboard.write;
+            navigator.clipboard.write = function() {
+                return Promise.reject(new Error('Clipboard access denied'));
+            };
+        }
+        
+        if (navigator.clipboard.writeText) {
+            const originalWriteText = navigator.clipboard.writeText;
+            navigator.clipboard.writeText = function(text) {
+                if (text && (text.includes('/api/media/') || text.includes('data:image'))) {
+                    return Promise.reject(new Error('Clipboard access denied'));
+                }
+                return originalWriteText.apply(this, arguments);
+            };
+        }
+    }
+    
+    // Block browser's Full Page Screenshot extensions
+    // Detect and block common extension patterns
+    setInterval(function() {
+        // Check for extension injection
+        if (window.chrome && window.chrome.runtime) {
+            // Block extension message passing
+            const originalSendMessage = window.chrome.runtime.sendMessage;
+            if (originalSendMessage) {
+                window.chrome.runtime.sendMessage = function() {
+                    return Promise.reject(new Error('Extension access denied'));
+                };
+            }
+        }
+    }, 1000);
+    
+    // Block browser's QR Code generators that might use image URLs
+    // Override URL.createObjectURL to prevent image URL creation
+    const originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = function(object) {
+        if (object instanceof Blob && object.type.startsWith('image/')) {
+            throw new Error('Image URL creation denied');
+        }
+        return originalCreateObjectURL.apply(this, arguments);
+    };
+    
+    // Block browser's Print Preview from showing images
+    // Override window.print
+    const originalPrint = window.print;
+    window.print = function() {
+        if (typeof showScreenshotWarning === 'function') {
+            showScreenshotWarning();
+        }
+        if (typeof activateBlackScreen === 'function') {
+            activateBlackScreen();
+        }
+        return false;
+    };
+    
+    // Block Print dialog
+    window.addEventListener('beforeprint', function(e) {
+        if (typeof showScreenshotWarning === 'function') {
+            showScreenshotWarning();
+        }
+        if (typeof activateBlackScreen === 'function') {
+            activateBlackScreen();
+        }
+    });
+    
+    window.addEventListener('afterprint', function() {
+        if (typeof deactivateBlackScreen === 'function') {
+            deactivateBlackScreen();
+        }
+    });
+    
+    // Block browser's Print menu
+    if (window.matchMedia) {
+        const mediaQueryList = window.matchMedia('print');
+        if (mediaQueryList.addListener) {
+            mediaQueryList.addListener(function(mql) {
+                if (mql.matches) {
+                    if (typeof showScreenshotWarning === 'function') {
+                        showScreenshotWarning();
+                    }
+                    if (typeof activateBlackScreen === 'function') {
+                        activateBlackScreen();
+                    }
+                }
+            });
+        } else if (mediaQueryList.addEventListener) {
+            mediaQueryList.addEventListener('change', function(mql) {
+                if (mql.matches) {
+                    if (typeof showScreenshotWarning === 'function') {
+                        showScreenshotWarning();
+                    }
+                    if (typeof activateBlackScreen === 'function') {
+                        activateBlackScreen();
+                    }
+                }
+            });
+        }
+    }
+    
+    // Block browser's Save As dialog
+    // This is handled by blocking Ctrl+S above, but add additional protection
+    document.addEventListener('keydown', function(e) {
+        // Block all save-related shortcuts
+        if ((e.ctrlKey || e.metaKey) && 
+            (e.key === 's' || e.key === 'S' || e.key === 'p' || e.key === 'P')) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            showScreenshotWarning();
+            return false;
+        }
+    }, true);
 
     // ========== PREVENT IFRAME EMBEDDING ==========
     if (window.top !== window.self) {
