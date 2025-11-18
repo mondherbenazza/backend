@@ -877,81 +877,197 @@
         }
     });
     
+    // ========== NETFLIX-STYLE CONTENT SCRAMBLING SYSTEM ==========
+    // This makes screenshots unusable by scrambling content in real-time
+    let scrambleActive = false;
+    let scrambleInterval = null;
+    
+    // Content scrambling function (Netflix-style)
+    function scrambleContent() {
+        scrambleActive = true;
+        const allMedia = document.querySelectorAll('img, video, canvas');
+        allMedia.forEach(function(media) {
+            // Apply aggressive scrambling CSS filters (makes screenshots unusable)
+            media.style.filter = 'blur(30px) brightness(0.05) contrast(0.05) saturate(0)';
+            media.style.transform = 'scale(0.05) rotate(180deg)';
+            media.style.opacity = '0.01';
+            media.style.visibility = 'hidden';
+            media.style.pointerEvents = 'none';
+            
+            // Add noise overlay (Netflix-style scrambling pattern)
+            if (!media.dataset.scrambleOverlay) {
+                const overlay = document.createElement('div');
+                overlay.className = 'scramble-overlay';
+                overlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: repeating-linear-gradient(
+                        0deg,
+                        rgba(0,0,0,0.95) 0px,
+                        rgba(255,255,255,0.05) 1px,
+                        rgba(0,0,0,0.95) 2px,
+                        rgba(255,0,0,0.1) 3px,
+                        rgba(0,0,0,0.95) 4px
+                    ),
+                    repeating-linear-gradient(
+                        90deg,
+                        rgba(0,0,0,0.95) 0px,
+                        rgba(0,255,0,0.05) 1px,
+                        rgba(0,0,0,0.95) 2px
+                    );
+                    background-blend-mode: multiply;
+                    z-index: 9999;
+                    pointer-events: none;
+                    mix-blend-mode: multiply;
+                `;
+                const parent = media.parentElement;
+                if (parent) {
+                    if (getComputedStyle(parent).position === 'static') {
+                        parent.style.position = 'relative';
+                    }
+                    parent.appendChild(overlay);
+                    media.dataset.scrambleOverlay = 'true';
+                }
+            }
+        });
+    }
+    
+    // Restore content function
+    function restoreContent() {
+        const allMedia = document.querySelectorAll('img, video, canvas');
+        allMedia.forEach(function(media) {
+            // Clear aggressive scrambling
+            media.style.filter = '';
+            media.style.transform = '';
+            media.style.opacity = '1';
+            media.style.visibility = 'visible';
+            media.style.pointerEvents = 'auto';
+            
+            // Remove scramble overlay
+            const overlay = media.parentElement.querySelector('.scramble-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            media.dataset.scrambleOverlay = '';
+        });
+        scrambleActive = false;
+        
+        // Frame obfuscation will continue with subtle changes (Netflix-style)
+    }
+    
+    // Frame-by-frame obfuscation (Netflix-style constant scrambling)
+    // This makes screenshots inconsistent by constantly changing the image slightly
+    function startFrameObfuscation() {
+        if (scrambleInterval) return;
+        
+        let frameCount = 0;
+        scrambleInterval = setInterval(function() {
+            frameCount++;
+            
+            // Only apply obfuscation on mobile and when page is visible
+            if (!isMobile || document.hidden || scrambleActive) return;
+            
+            // Every few frames, apply very subtle scrambling to make screenshots inconsistent
+            if (frameCount % 2 === 0) {
+                const allMedia = document.querySelectorAll('img, video, canvas');
+                allMedia.forEach(function(media) {
+                    // Apply very subtle constant scrambling (Netflix-style)
+                    // This makes any screenshot capture inconsistent without affecting viewing
+                    const randomBlur = Math.random() * 0.5; // Very subtle blur
+                    const randomBrightness = 0.98 + Math.random() * 0.04; // Minimal brightness change
+                    const randomHue = (Math.random() - 0.5) * 5; // Very small hue shift
+                    
+                    // Apply subtle filters that change constantly (imperceptible to user)
+                    media.style.filter = `blur(${randomBlur}px) brightness(${randomBrightness}) hue-rotate(${randomHue}deg)`;
+                    
+                    // Very slight position jitter (imperceptible but makes screenshots inconsistent)
+                    const jitterX = (Math.random() - 0.5) * 0.5;
+                    const jitterY = (Math.random() - 0.5) * 0.5;
+                    const currentTransform = media.style.transform || '';
+                    if (!currentTransform.includes('scale') && !currentTransform.includes('rotate')) {
+                        media.style.transform = `translate(${jitterX}px, ${jitterY}px)`;
+                    }
+                });
+            }
+        }, 33); // ~30fps obfuscation (balance between protection and performance)
+    }
+    
+    // Start frame obfuscation on mobile (Netflix-style)
+    if (isMobile) {
+        startFrameObfuscation();
+    }
+
     // ========== AGGRESSIVE MOBILE SCREENSHOT & RECORDING PREVENTION ==========
     if (isMobile) {
         let mobileScreenshotAttempts = 0;
         let lastMobileVisibilityChange = Date.now();
+        let lastScrambleTime = 0;
         
-        // iOS: Enhanced screenshot and recording detection (SILENT - no black screen, no notifications)
+        // iOS: Enhanced screenshot and recording detection with content scrambling
         if (isIOS) {
-            // Method 1: Detect app backgrounding (screenshot indicator) - Silent blocking
+            // Method 1: Detect app backgrounding (screenshot indicator) - Scramble content
             window.addEventListener('pagehide', function() {
-                // Silent - just hide content temporarily, no black screen, no notification
-                const allContent = document.querySelectorAll('img, video, canvas');
-                allContent.forEach(function(el) {
-                    el.style.opacity = '0';
-                    el.style.visibility = 'hidden';
-                });
+                scrambleActive = true;
+                scrambleContent();
+                lastScrambleTime = Date.now();
             });
             
             window.addEventListener('pageshow', function(e) {
                 const timeHidden = Date.now() - lastMobileVisibilityChange;
-                // If page was hidden briefly, likely screenshot - restore content silently
+                // If page was hidden briefly, likely screenshot - keep scrambled longer
                 if (timeHidden > 0 && timeHidden < 800) {
                     mobileScreenshotAttempts++;
-                    // Silent blocking - no notification, no black screen
-                    // Content was already hidden, just restore it
+                    // Keep content scrambled for longer to prevent screenshot
                     setTimeout(function() {
-                        const allContent = document.querySelectorAll('img, video, canvas');
-                        allContent.forEach(function(el) {
-                            el.style.opacity = '1';
-                            el.style.visibility = 'visible';
-                        });
-                    }, 100);
+                        restoreContent();
+                    }, 500);
                 } else {
                     // Normal return - restore content
-                    const allContent = document.querySelectorAll('img, video, canvas');
-                    allContent.forEach(function(el) {
-                        el.style.opacity = '1';
-                        el.style.visibility = 'visible';
-                    });
+                    setTimeout(function() {
+                        restoreContent();
+                    }, 100);
                 }
             });
             
-            // Method 2: Detect visibility changes (screenshot/recording indicator) - Silent
+            // Method 2: Detect visibility changes (screenshot/recording indicator) - Scramble immediately
             document.addEventListener('visibilitychange', function() {
                 lastMobileVisibilityChange = Date.now();
                 if (document.hidden) {
-                    // Silently hide content when page becomes hidden
-                    const allContent = document.querySelectorAll('img, video, canvas');
-                    allContent.forEach(function(el) {
-                        el.style.opacity = '0';
-                        el.style.visibility = 'hidden';
-                    });
+                    // Immediately scramble content when page becomes hidden
+                    scrambleActive = true;
+                    scrambleContent();
+                    lastScrambleTime = Date.now();
                 } else {
                     // Page visible again - might be after screenshot
                     const timeHidden = Date.now() - lastMobileVisibilityChange;
                     if (timeHidden > 0 && timeHidden < 1000) {
                         mobileScreenshotAttempts++;
-                        // Silent - no notification, no black screen
-                        // Content was already hidden, restore it after brief delay
+                        // Keep scrambled longer if screenshot detected
                         setTimeout(function() {
-                            const allContent = document.querySelectorAll('img, video, canvas');
-                            allContent.forEach(function(el) {
-                                el.style.opacity = '1';
-                                el.style.visibility = 'visible';
-                            });
-                        }, 100);
+                            restoreContent();
+                        }, 500);
                     } else {
-                        // Normal return - restore content
-                        const allContent = document.querySelectorAll('img, video, canvas');
-                        allContent.forEach(function(el) {
-                            el.style.opacity = '1';
-                            el.style.visibility = 'visible';
-                        });
+                        // Normal return - restore content quickly
+                        setTimeout(function() {
+                            restoreContent();
+                        }, 100);
                     }
                 }
             });
+            
+            // Method 2b: Continuous scrambling when page might be screenshot
+            // Monitor for any signs of screenshot and scramble immediately
+            setInterval(function() {
+                if (document.hidden) {
+                    if (!scrambleActive) {
+                        scrambleActive = true;
+                        scrambleContent();
+                    }
+                }
+            }, 16); // Check every frame (~60fps)
             
             // Method 3: Detect iOS screen recording API
             if (window.ReplayKit) {
@@ -979,52 +1095,40 @@
             }
         }
         
-        // Android: Enhanced screenshot and recording detection (SILENT - no black screen, no notifications)
+        // Android: Enhanced screenshot and recording detection with content scrambling
         if (isAndroid) {
-            // Method 1: Detect app switching (screenshot indicator) - Silent
+            // Method 1: Detect app switching (screenshot indicator) - Scramble content
             window.addEventListener('blur', function() {
                 lastBlurTime = Date.now();
-                // Silently hide content, no black screen, no notification
-                const allContent = document.querySelectorAll('img, video, canvas');
-                allContent.forEach(function(el) {
-                    el.style.opacity = '0';
-                    el.style.visibility = 'hidden';
-                });
+                // Immediately scramble content
+                scrambleActive = true;
+                scrambleContent();
+                lastScrambleTime = Date.now();
             });
             
             window.addEventListener('focus', function() {
                 const timeSinceBlur = Date.now() - lastBlurTime;
                 if (timeSinceBlur > 0 && timeSinceBlur < 1000) {
-                    // Screenshot detected - silent blocking
+                    // Screenshot detected - keep scrambled longer
                     mobileScreenshotAttempts++;
-                    // No notification, no black screen - just restore content
                     setTimeout(function() {
-                        const allContent = document.querySelectorAll('img, video, canvas');
-                        allContent.forEach(function(el) {
-                            el.style.opacity = '1';
-                            el.style.visibility = 'visible';
-                        });
-                    }, 100);
+                        restoreContent();
+                    }, 500);
                 } else {
                     // Normal return - restore content
-                    const allContent = document.querySelectorAll('img, video, canvas');
-                    allContent.forEach(function(el) {
-                        el.style.opacity = '1';
-                        el.style.visibility = 'visible';
-                    });
+                    setTimeout(function() {
+                        restoreContent();
+                    }, 100);
                 }
             });
             
-            // Method 2: Detect Android screenshot gestures (volume down + power) - Silent
+            // Method 2: Detect Android screenshot gestures (volume down + power) - Scramble
             let androidScreenshotDetected = false;
             window.addEventListener('blur', function() {
                 androidScreenshotDetected = true;
-                // Silently hide content
-                const allContent = document.querySelectorAll('img, video, canvas');
-                allContent.forEach(function(el) {
-                    el.style.opacity = '0';
-                    el.style.visibility = 'hidden';
-                });
+                // Immediately scramble content
+                scrambleActive = true;
+                scrambleContent();
                 setTimeout(function() {
                     androidScreenshotDetected = false;
                 }, 500);
@@ -1032,17 +1136,22 @@
             
             window.addEventListener('focus', function() {
                 if (androidScreenshotDetected) {
-                    // Silent - no notification, no black screen
-                    // Just restore content
+                    // Keep scrambled longer if screenshot detected
                     setTimeout(function() {
-                        const allContent = document.querySelectorAll('img, video, canvas');
-                        allContent.forEach(function(el) {
-                            el.style.opacity = '1';
-                            el.style.visibility = 'visible';
-                        });
-                    }, 100);
+                        restoreContent();
+                    }, 500);
                 }
             });
+            
+            // Method 2b: Continuous scrambling monitoring
+            setInterval(function() {
+                if (document.hidden || !document.hasFocus()) {
+                    if (!scrambleActive) {
+                        scrambleActive = true;
+                        scrambleContent();
+                    }
+                }
+            }, 16); // Check every frame
             
             // Method 3: Block Android screen recording via MediaProjection API - Silent
             // Block getUserMedia for screen recording
@@ -1063,45 +1172,42 @@
             }
         }
         
-        // Universal mobile: Continuous aggressive monitoring (SILENT)
-        // Check every 50ms (very aggressive for mobile)
+        // Universal mobile: Continuous aggressive monitoring with scrambling
+        // Check every frame (60fps) for maximum protection
         setInterval(function() {
             if (document.hidden) {
-                // Silently hide content while page is hidden - no black screen, no notification
-                const allContent = document.querySelectorAll('img, video, canvas');
-                allContent.forEach(function(el) {
-                    el.style.opacity = '0';
-                    el.style.visibility = 'hidden';
-                });
+                // Immediately scramble content while page is hidden
+                if (!scrambleActive) {
+                    scrambleActive = true;
+                    scrambleContent();
+                }
             } else {
-                // Restore content when page is visible
-                const allContent = document.querySelectorAll('img, video, canvas');
-                allContent.forEach(function(el) {
-                    el.style.opacity = '1';
-                    el.style.visibility = 'visible';
-                });
+                // Only restore if not recently scrambled (to prevent screenshot)
+                const timeSinceScramble = Date.now() - lastScrambleTime;
+                if (timeSinceScramble > 500) {
+                    if (scrambleActive) {
+                        restoreContent();
+                    }
+                }
             }
-        }, 50);
+        }, 16); // ~60fps monitoring
         
-        // Monitor for rapid visibility changes (screenshot indicator) - Silent
+        // Monitor for rapid visibility changes (screenshot indicator) - Scramble immediately
         let visibilityChangeCount = 0;
         let lastVisibilityCheck = Date.now();
         document.addEventListener('visibilitychange', function() {
             visibilityChangeCount++;
             const timeSinceLastCheck = Date.now() - lastVisibilityCheck;
             
-            // If multiple rapid visibility changes, likely screenshot attempt - Silent blocking
+            // If multiple rapid visibility changes, likely screenshot attempt - Scramble immediately
             if (timeSinceLastCheck < 500 && visibilityChangeCount > 2) {
                 mobileScreenshotAttempts++;
-                // Silent - no notification, no black screen
-                // Content is already hidden, just keep it hidden briefly
+                scrambleActive = true;
+                scrambleContent();
+                // Keep scrambled longer
                 setTimeout(function() {
-                    const allContent = document.querySelectorAll('img, video, canvas');
-                    allContent.forEach(function(el) {
-                        el.style.opacity = '1';
-                        el.style.visibility = 'visible';
-                    });
-                }, 200);
+                    restoreContent();
+                }, 1000);
             }
             
             lastVisibilityCheck = Date.now();
@@ -1111,6 +1217,17 @@
                 visibilityChangeCount = 0;
             }, 1000);
         });
+        
+        // Additional protection: Scramble on any touch event that might be screenshot
+        document.addEventListener('touchstart', function() {
+            // Slight delay to detect if it's a screenshot gesture
+            setTimeout(function() {
+                if (document.hidden) {
+                    scrambleActive = true;
+                    scrambleContent();
+                }
+            }, 50);
+        }, true);
         
         // Block all mobile screen recording APIs (SILENT - no notifications)
         // Block MediaRecorder API
@@ -1173,23 +1290,25 @@
             };
         }
         
-        // Additional mobile-specific: Silently hide content when in background
+        // Additional mobile-specific: Scramble content when in background
         window.addEventListener('blur', function() {
-            // Silent - just hide content, no black screen
-            const allContent = document.querySelectorAll('img, video, canvas');
-            allContent.forEach(function(el) {
-                el.style.opacity = '0';
-                el.style.visibility = 'hidden';
-            });
+            // Immediately scramble content
+            scrambleActive = true;
+            scrambleContent();
+            lastScrambleTime = Date.now();
         });
         
         window.addEventListener('focus', function() {
-            // Restore content when focused
-            const allContent = document.querySelectorAll('img, video, canvas');
-            allContent.forEach(function(el) {
-                el.style.opacity = '1';
-                el.style.visibility = 'visible';
-            });
+            // Restore content when focused (with delay to prevent screenshot)
+            const timeSinceScramble = Date.now() - lastScrambleTime;
+            if (timeSinceScramble > 500) {
+                restoreContent();
+            } else {
+                // Keep scrambled if recently scrambled
+                setTimeout(function() {
+                    restoreContent();
+                }, 500);
+            }
         });
         
         // Prevent mobile screenshot via browser's screenshot feature
