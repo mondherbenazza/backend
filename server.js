@@ -56,20 +56,28 @@ async function compressImage(buffer, mimetype) {
         const sharpInstance = sharp(buffer);
         const metadata = await sharpInstance.metadata();
 
-        // Skip compression for very small images
-        if (buffer.length < 100000) { // Less than 100KB
+        // Skip compression for small images (increased threshold)
+        if (buffer.length < 200000) { // Less than 200KB
             return buffer;
         }
 
-        // Convert ALL images to WebP for maximum compression
-        // Increased effort for better compression, reduced quality for faster processing
-        const compressedBuffer = await sharpInstance
+        // Resize large images to max 1920px on longest side
+        let resizedInstance = sharpInstance;
+        const maxDimension = 1920;
+        if (metadata.width > maxDimension || metadata.height > maxDimension) {
+            resizedInstance = sharpInstance.resize(maxDimension, maxDimension, {
+                fit: 'inside',
+                withoutEnlargement: true
+            });
+        }
+
+        // Convert ALL images to WebP - optimized for speed
+        const compressedBuffer = await resizedInstance
             .webp({
-                quality: 75,  // Reduced quality for faster compression
-                effort: 4     // Reduced effort for faster processing
+                quality: 70,  // Reduced quality for faster compression and smaller files
+                effort: 2     // Lower effort for faster processing
             })
             .toBuffer();
-
 
         return compressedBuffer;
     } catch (error) {
@@ -89,7 +97,7 @@ async function uploadToSupabase(file) {
     const safeBase = path
         .basename(file.originalname, path.extname(file.originalname))
         .replace(/[^a-z0-9-_]/gi, "_");
-    const key = `posts/${Date.now()}_${safeBase}.webp`;
+    const key = `posts/${Date.now()}_${safeBase}.jpg`;
 
     // Use Promise.all for parallel processing if needed, but for now keep sequential
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -206,6 +214,7 @@ function validateEnv() {
 validateEnv();
 app.set("view engine", "ejs");
 app.use(express.urlencoded({extended: false}))
+app.use(express.json())
 app.use(express.static("public"));
 app.use(cookieParser())
 
@@ -317,7 +326,93 @@ function mustBeLoggedIn(req,res,next) {
 
 app.get("/create-post",mustBeLoggedIn,(req,res)=>{
     res.render("create-post")
-})    
+})
+
+// API endpoint to get a signed upload URL for direct client-to-Supabase upload
+app.post("/api/upload-url", mustBeLoggedIn, async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).json({ error: "Supabase not configured" });
+        }
+
+        // Generate a unique file path
+        const timestamp = Date.now();
+        const randomString = Math.random().toString(36).substring(7);
+        const fileName = `${timestamp}_${randomString}.webp`;
+        const filePath = `posts/${fileName}`;
+
+        // Create a signed upload URL (valid for 5 minutes)
+        const { data, error } = await supabase.storage
+            .from(supabaseBucket)
+            .createSignedUploadUrl(filePath);
+
+        if (error) {
+            console.error("Error creating signed URL:", error);
+            return res.status(500).json({ error: "Failed to create upload URL" });
+        }
+
+        // Return the signed URL and the path
+        res.json({
+            uploadUrl: data.signedUrl,
+            path: data.path,
+            token: data.token
+        });
+    } catch (error) {
+        console.error("Error in /api/upload-url:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// API endpoint to get the public URL after successful upload
+app.post("/api/finalize-upload", mustBeLoggedIn, async (req, res) => {
+    try {
+        if (!supabase) {
+            return res.status(500).json({ error: "Supabase not configured" });
+        }
+
+        const { path } = req.body;
+        if (!path || typeof path !== "string") {
+            return res.status(400).json({ error: "Invalid path" });
+        }
+
+        // Validate the path is in the correct bucket directory
+        if (!path.startsWith("posts/")) {
+            return res.status(400).json({ error: "Invalid file path" });
+        }
+
+        // Get the public URL
+        const { data } = supabase.storage.from(supabaseBucket).getPublicUrl(path);
+
+        res.json({ publicUrl: data.publicUrl, key: path });
+    } catch (error) {
+        console.error("Error in /api/finalize-upload:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// API endpoint to update post image URL (for progressive loading/background processing)
+app.post("/api/update-post-image", mustBeLoggedIn, async (req, res) => {
+    try {
+        const { postId, imageUrl } = req.body;
+        if (!postId || !imageUrl) {
+            return res.status(400).json({ error: "Missing postId or imageUrl" });
+        }
+
+        // Verify the post belongs to the user
+        const [post] = await sql`SELECT * FROM posts WHERE id = ${postId} AND authorid = ${req.user.userid}`;
+        if (!post) {
+            return res.status(404).json({ error: "Post not found or not authorized" });
+        }
+
+        // Update the image URL
+        await sql`UPDATE posts SET imageurl = ${imageUrl} WHERE id = ${postId}`;
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Error in /api/update-post-image:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 function share(req) {
     const errors = []
@@ -488,21 +583,44 @@ app.post("/create-post",mustBeLoggedIn, upload.single("image"), async (req,res)=
         return res.render("create-post",{errors, title: req.body.title, body: req.body.body})
     }
 
-    // Require an image to be uploaded for posts
-    if (!req.file) {
-        const msg = 'Upload an image for this post.';
-        const fieldErrors = { image: [msg] };
-        return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
-    }
+    let imageUrl = null;
 
-    let imageUrl = null
-    try {
-        const uploaded = await uploadToSupabase(req.file)
-        imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
-        console.log(`User ${req.user.username} uploaded an image`)
-    } catch (e) {
-        console.error("Upload to Supabase failed", e)
-        const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
+    // Check if imageUrl was provided (direct upload from client)
+    if (req.body.imageUrl && typeof req.body.imageUrl === "string") {
+        // Validate that the URL is from our Supabase bucket
+        try {
+            const url = new URL(req.body.imageUrl);
+            const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : '';
+            if (url.hostname === supabaseHostname && req.body.imageUrl.includes(`/storage/v1/object/public/${supabaseBucket}/posts/`)) {
+                imageUrl = req.body.imageUrl;
+                console.log(`User ${req.user.username} uploaded an image (direct upload)`);
+            } else {
+                const msg = 'Invalid image URL.';
+                const fieldErrors = { image: [msg] };
+                return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
+            }
+        } catch (e) {
+            const msg = 'Invalid image URL.';
+            const fieldErrors = { image: [msg] };
+            return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
+        }
+    } 
+    // Fallback to traditional server upload
+    else if (req.file) {
+        try {
+            const uploaded = await uploadToSupabase(req.file)
+            imageUrl = uploaded && uploaded.publicUrl ? uploaded.publicUrl : null
+            console.log(`User ${req.user.username} uploaded an image (server upload)`)
+        } catch (e) {
+            console.error("Upload to Supabase failed", e)
+            const msg = (e && e.code === 'LIMIT_FILE_SIZE') ? 'Selected image is too large. Maximum allowed size is 10 MB.' : 'Image upload failed. Please try again.'
+            const fieldErrors = { image: [msg] };
+            return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
+        }
+    } 
+    // No image provided
+    else {
+        const msg = 'Upload an image for this post.';
         const fieldErrors = { image: [msg] };
         return res.render("create-post", { fieldErrors, title: req.body.title, body: req.body.body })
     }
